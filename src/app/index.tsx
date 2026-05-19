@@ -1,36 +1,48 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { supabase } from '../../supabaseConfig';
+import { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import { supabase } from "../../supabaseConfig.js";
 
 export default function HomeScreen() {
   const [toilets, setToilets] = useState([]);
 
   useEffect(() => {
     async function fetchToilets() {
-      const { data, error } = await supabase.from('toilets').select('*');
-      if (data) {
-        setToilets(data);
-        console.log('Toilets loaded:', data);
-      }
-      if (error) console.log('Error:', error);
+      const { data, error } = await supabase.from("toilets").select("*");
+      if (data) setToilets(data);
+      if (error) console.log("Error:", error);
     }
     fetchToilets();
   }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🚽 LooWhere</Text>
-      {toilets.map((toilet) => (
-        <Text key={toilet.id} style={styles.item}>
-          {toilet.has_bidet ? '🚿' : '🚽'} {toilet.name}
-        </Text>
-      ))}
+      <MapView
+        style={styles.map}
+        initialRegion={{
+          latitude: 1.3521,
+          longitude: 103.8198,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+      >
+        {toilets.map((toilet) => (
+          <Marker
+            key={toilet.id}
+            coordinate={{
+              latitude: toilet.latitude,
+              longitude: toilet.longitude,
+            }}
+            title={toilet.name}
+            description={toilet.has_bidet ? "🚿 Has bidet" : "🚽 No bidet"}
+          />
+        ))}
+      </MapView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 20 },
-  item: { fontSize: 18, marginBottom: 10 },
+  container: { flex: 1 },
+  map: { width: "100%", height: "100%" },
 });
