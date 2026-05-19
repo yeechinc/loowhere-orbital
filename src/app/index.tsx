@@ -1,12 +1,24 @@
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import { supabase } from "../../supabaseConfig.js";
+import { supabase } from "../../supabaseConfig";
 
 export default function HomeScreen() {
   const [toilets, setToilets] = useState([]);
 
   useEffect(() => {
+    async function checkUser() {
+      await supabase.auth.signOut();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+      }
+    }
+    checkUser();
+
     async function fetchToilets() {
       const { data, error } = await supabase.from("toilets").select("*");
       if (data) setToilets(data);
