@@ -16,7 +16,18 @@ export default function RegisterScreen({ onSwitchToLogin, onSuccess }) {
 
   async function handleRegister() {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const randomNum = Math.floor(Math.random() * 9000) + 1000;
+    const displayName = `LooSeeker${randomNum}`;
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: displayName,
+        },
+      },
+    });
     setLoading(false);
     if (error) {
       Alert.alert("Registration failed", error.message);
