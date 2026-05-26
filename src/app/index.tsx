@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  FlatList,
   Image,
   Modal,
   ScrollView,
@@ -29,17 +30,16 @@ export default function HomeScreen() {
   const [userComment, setUserComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [averageRating, setAverageRating] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
   const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/login");
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) router.replace("/login");
     }
     checkUser();
 
@@ -51,8 +51,24 @@ export default function HomeScreen() {
     fetchToilets();
   }, []);
 
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      const filtered = toilets.filter((t) =>
+        t.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setSearchResults(filtered);
+      setShowResults(true);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, toilets]);
+
   async function fetchReviews(toiletName) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("reviews")
       .select("*")
       .eq("toilet_name", toiletName)
@@ -68,16 +84,26 @@ export default function HomeScreen() {
     }
   }
 
+  function handleSelectResult(toilet) {
+    setSelectedToilet(toilet);
+    fetchReviews(toilet.name);
+    setSearchQuery("");
+    setShowResults(false);
+    mapRef.current?.animateToRegion({
+      latitude: toilet.latitude,
+      longitude: toilet.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 600);
+  }
+
   async function handleSubmitReview() {
     if (userRating === 0) {
       Alert.alert("Error", "Please select a star rating!");
       return;
     }
     setSubmitting(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("reviews").insert({
       toilet_name: selectedToilet.name,
       user_id: user.id,
@@ -107,33 +133,26 @@ export default function HomeScreen() {
     return true;
   });
 
-  const renderStars = (rating, size = 16, interactive = false) => {
-    return (
-      <View style={{ flexDirection: "row", gap: 2 }}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity
-            key={star}
-            onPress={() => interactive && setUserRating(star)}
-            disabled={!interactive}
-          >
-            <Text style={{ fontSize: size, color: star <= rating ? "#f59e0b" : "#d1d5db" }}>
-              ★
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
+  const renderStars = (rating, size = 16, interactive = false) => (
+    <View style={{ flexDirection: "row", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <TouchableOpacity
+          key={star}
+          onPress={() => interactive && setUserRating(star)}
+          disabled={!interactive}
+        >
+          <Text style={{ fontSize: size, color: star <= rating ? "#f59e0b" : "#d1d5db" }}>★</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
-          <Image
-            source={require("../../assets/images/logo.png")}
-            style={styles.logoImage}
-          />
+          <Image source={require("../../assets/images/logo.png")} style={styles.logoImage} />
           <Text style={styles.headerTitle}>LooWhere?</Text>
         </View>
         <TouchableOpacity style={styles.filterIcon}>
@@ -141,31 +160,61 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchWrapper}>
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for a toilet..."
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearchQuery(""); setShowResults(false); }}>
+              <Text style={styles.clearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {showResults && (
+          <View style={styles.dropdown}>
+            {searchResults.length === 0 ? (
+              <Text style={styles.noResults}>No toilets found</Text>
+            ) : (
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item) => item.id?.toString() ?? item.name}
+                keyboardShouldPersistTaps="handled"
+                style={{ maxHeight: 240 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.dropdownItem} onPress={() => handleSelectResult(item)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dropdownName}>{item.name}</Text>
+                      <Text style={styles.dropdownAddress}>{item.address}</Text>
+                    </View>
+                    <Text style={styles.dropdownArrow}>→</Text>
+                  </TouchableOpacity>
+                )}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+              />
+            )}
+          </View>
+        )}
+      </View>
+
       {/* Filter Chips */}
       <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={[styles.chip, activeFilters.bidet && styles.chipActive]}
-          onPress={() => toggleFilter("bidet")}
-        >
-          <Text style={[styles.chipText, activeFilters.bidet && styles.chipTextActive]}>
-            🚿 Bidet
-          </Text>
+        <TouchableOpacity style={[styles.chip, activeFilters.bidet && styles.chipActive]} onPress={() => toggleFilter("bidet")}>
+          <Text style={[styles.chipText, activeFilters.bidet && styles.chipTextActive]}>🚿 Bidet</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chip, activeFilters.handicap && styles.chipActive]}
-          onPress={() => toggleFilter("handicap")}
-        >
-          <Text style={[styles.chipText, activeFilters.handicap && styles.chipTextActive]}>
-            ♿ Handicap
-          </Text>
+        <TouchableOpacity style={[styles.chip, activeFilters.handicap && styles.chipActive]} onPress={() => toggleFilter("handicap")}>
+          <Text style={[styles.chipText, activeFilters.handicap && styles.chipTextActive]}>♿ Handicap</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chip, activeFilters.paper && styles.chipActive]}
-          onPress={() => toggleFilter("paper")}
-        >
-          <Text style={[styles.chipText, activeFilters.paper && styles.chipTextActive]}>
-            🧻 Paper
-          </Text>
+        <TouchableOpacity style={[styles.chip, activeFilters.paper && styles.chipActive]} onPress={() => toggleFilter("paper")}>
+          <Text style={[styles.chipText, activeFilters.paper && styles.chipTextActive]}>🧻 Paper</Text>
         </TouchableOpacity>
       </View>
 
@@ -173,25 +222,14 @@ export default function HomeScreen() {
       <MapView
         style={styles.map}
         ref={mapRef}
-        initialRegion={{
-          latitude: 1.3521,
-          longitude: 103.8198,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+        initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
       >
         {filteredToilets.map((toilet) => (
           <Marker
             key={`${toilet.name}-${selectedToilet?.name}`}
-            coordinate={{
-              latitude: toilet.latitude,
-              longitude: toilet.longitude,
-            }}
+            coordinate={{ latitude: toilet.latitude, longitude: toilet.longitude }}
             pinColor={toilet.has_bidet ? "#1a56db" : "red"}
-            onPress={() => {
-              setSelectedToilet(toilet);
-              fetchReviews(toilet.name);
-            }}
+            onPress={() => { setSelectedToilet(toilet); fetchReviews(toilet.name); }}
           />
         ))}
       </MapView>
@@ -199,12 +237,9 @@ export default function HomeScreen() {
       {/* Bottom Sheet Popup */}
       {selectedToilet && (
         <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 8 }]}>
-          {/* Picture placeholder */}
           <View style={styles.imagePlaceholder}>
             <Text style={styles.imagePlaceholderText}>📷 Picture here</Text>
           </View>
-
-          {/* Toilet Info */}
           <View style={styles.sheetContent}>
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{selectedToilet.name}</Text>
@@ -212,50 +247,23 @@ export default function HomeScreen() {
                 <Text style={styles.verifiedText}>VERIFIED</Text>
               </View>
             </View>
-
-            {/* Rating Row */}
-            <TouchableOpacity
-              style={styles.ratingRow}
-              onPress={() => setReviewsVisible(true)}
-            >
+            <TouchableOpacity style={styles.ratingRow} onPress={() => setReviewsVisible(true)}>
               {renderStars(averageRating)}
               <Text style={styles.ratingText}>
-                {averageRating > 0
-                  ? `${averageRating} (${reviews.length} reviews)`
-                  : "No reviews yet"}
+                {averageRating > 0 ? `${averageRating} (${reviews.length} reviews)` : "No reviews yet"}
               </Text>
             </TouchableOpacity>
-
             <Text style={styles.sheetAddress}>{selectedToilet.address}</Text>
-
-            {/* Facility Tags */}
             <View style={styles.tagRow}>
-              {selectedToilet.has_bidet && (
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>🚿 Bidet</Text>
-                </View>
-              )}
-              {selectedToilet.handicapped_access && (
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>♿ Accessible</Text>
-                </View>
-              )}
-              {selectedToilet.has_paper && (
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>🧻 Paper</Text>
-                </View>
-              )}
+              {selectedToilet.has_bidet && <View style={styles.tag}><Text style={styles.tagText}>🚿 Bidet</Text></View>}
+              {selectedToilet.handicapped_access && <View style={styles.tag}><Text style={styles.tagText}>♿ Accessible</Text></View>}
+              {selectedToilet.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
             </View>
-
-            {/* Buttons */}
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.goButton}>
                 <Text style={styles.goButtonText}>📍 Let's Go!</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setSelectedToilet(null)}
-              >
+              <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedToilet(null)}>
                 <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -264,28 +272,18 @@ export default function HomeScreen() {
       )}
 
       {/* Reviews Modal */}
-      <Modal
-        visible={reviewsVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setReviewsVisible(false)}
-      >
+      <Modal visible={reviewsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setReviewsVisible(false)}>
         <View style={[styles.modalContainer, { paddingTop: insets.top + 16 }]}>
-          {/* Modal Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{selectedToilet?.name}</Text>
             <TouchableOpacity onPress={() => setReviewsVisible(false)}>
               <Text style={styles.modalClose}>✕</Text>
             </TouchableOpacity>
           </View>
-
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Write Review Section */}
             <View style={styles.writeReview}>
               <Text style={styles.writeReviewTitle}>Write a Review</Text>
-              <View style={styles.starPicker}>
-                {renderStars(userRating, 32, true)}
-              </View>
+              <View style={styles.starPicker}>{renderStars(userRating, 32, true)}</View>
               <TextInput
                 style={styles.commentInput}
                 placeholder="Share your experience..."
@@ -294,53 +292,31 @@ export default function HomeScreen() {
                 multiline
                 numberOfLines={3}
               />
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={handleSubmitReview}
-                disabled={submitting}
-              >
-                <Text style={styles.submitButtonText}>
-                  {submitting ? "Submitting..." : "Submit Review"}
-                </Text>
+              <TouchableOpacity style={styles.submitButton} onPress={handleSubmitReview} disabled={submitting}>
+                <Text style={styles.submitButtonText}>{submitting ? "Submitting..." : "Submit Review"}</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Divider */}
             <View style={styles.divider} />
-
-            {/* Reviews List */}
             <Text style={styles.reviewsTitle}>
-              {reviews.length > 0
-                ? `${reviews.length} Review${reviews.length > 1 ? "s" : ""}`
-                : "No reviews yet — be the first!"}
+              {reviews.length > 0 ? `${reviews.length} Review${reviews.length > 1 ? "s" : ""}` : "No reviews yet — be the first!"}
             </Text>
-
             {reviews.map((review) => (
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View style={styles.reviewAvatar}>
-                    <Text style={styles.reviewAvatarText}>
-                      {review.display_name?.[0].toUpperCase() ?? "?"}
-                    </Text>
+                    <Text style={styles.reviewAvatarText}>{review.display_name?.[0].toUpperCase() ?? "?"}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.reviewName}>{review.display_name}</Text>
                     <Text style={styles.reviewDate}>
-                      {new Date(review.created_at).toLocaleDateString("en-SG", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {new Date(review.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}
                     </Text>
                   </View>
                   {renderStars(review.rating, 14)}
                 </View>
-                {review.comment ? (
-                  <Text style={styles.reviewComment}>{review.comment}</Text>
-                ) : null}
+                {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
               </View>
             ))}
-
             <View style={{ height: 32 }} />
           </ScrollView>
         </View>
@@ -352,7 +328,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0f4f8" },
 
-  // Header
   header: {
     backgroundColor: "white",
     paddingBottom: 4,
@@ -374,7 +349,49 @@ const styles = StyleSheet.create({
   filterIcon: { padding: 4 },
   filterIconText: { fontSize: 22 },
 
-  // Filter chips
+  searchWrapper: {
+    backgroundColor: "white",
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+    zIndex: 20,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchIcon: { fontSize: 15 },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827" },
+  clearText: { fontSize: 15, color: "#9ca3af" },
+  dropdown: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+    overflow: "hidden",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownName: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  dropdownAddress: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  dropdownArrow: { fontSize: 18, color: "#1a56db", marginLeft: 8 },
+  separator: { height: 1, backgroundColor: "#f3f4f6", marginHorizontal: 16 },
+  noResults: { padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 14 },
+
   filterRow: {
     flexDirection: "row",
     paddingHorizontal: 12,
@@ -395,15 +412,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: "600", color: "#374151" },
   chipTextActive: { color: "white" },
 
-  // Map
   map: { flex: 1 },
 
-  // Bottom Sheet
   bottomSheet: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 0, left: 0, right: 0,
     backgroundColor: "white",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -424,148 +437,37 @@ const styles = StyleSheet.create({
   },
   imagePlaceholderText: { fontSize: 16, color: "#9ca3af" },
   sheetContent: { padding: 16 },
-  sheetTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
+  sheetTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111827", flex: 1 },
-  verifiedBadge: {
-    backgroundColor: "#1a56db",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginLeft: 8,
-  },
+  verifiedBadge: { backgroundColor: "#1a56db", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginLeft: 8 },
   verifiedText: { color: "white", fontSize: 11, fontWeight: "700" },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-  },
-  ratingText: {
-    fontSize: 13,
-    color: "#1a56db",
-    textDecorationLine: "underline",
-    fontWeight: "600",
-  },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  ratingText: { fontSize: 13, color: "#1a56db", textDecorationLine: "underline", fontWeight: "600" },
   sheetAddress: { fontSize: 13, color: "#6b7280", marginBottom: 10 },
   tagRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
-  tag: {
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
+  tag: { backgroundColor: "#eff6ff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#bfdbfe" },
   tagText: { fontSize: 13, color: "#1a56db", fontWeight: "600" },
   buttonRow: { flexDirection: "row", gap: 10 },
-  goButton: {
-    flex: 1,
-    backgroundColor: "#1a56db",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
+  goButton: { flex: 1, backgroundColor: "#1a56db", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   goButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
-  closeButton: {
-    width: 50,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  closeButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeButtonText: { fontSize: 18, color: "#374151" },
 
-  // Reviews Modal
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#f0f4f8",
-    paddingHorizontal: 16,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
+  modalContainer: { flex: 1, backgroundColor: "#f0f4f8", paddingHorizontal: 16 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111827", flex: 1 },
   modalClose: { fontSize: 18, color: "#6b7280" },
-
-  writeReview: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-  },
-  writeReviewTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
+  writeReview: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
+  writeReviewTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginBottom: 12 },
   starPicker: { marginBottom: 12 },
-  commentInput: {
-    backgroundColor: "#f9fafb",
-    borderWidth: 1.5,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 80,
-    textAlignVertical: "top",
-    marginBottom: 12,
-  },
-  submitButton: {
-    backgroundColor: "#1a56db",
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
-  },
+  commentInput: { backgroundColor: "#f9fafb", borderWidth: 1.5, borderColor: "#e5e7eb", borderRadius: 12, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: "top", marginBottom: 12 },
+  submitButton: { backgroundColor: "#1a56db", borderRadius: 12, padding: 14, alignItems: "center" },
   submitButtonText: { color: "white", fontWeight: "700", fontSize: 15 },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginBottom: 16,
-  },
-  reviewsTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  reviewCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  reviewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  reviewAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1a56db",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  divider: { height: 1, backgroundColor: "#e5e7eb", marginBottom: 16 },
+  reviewsTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginBottom: 12 },
+  reviewCard: { backgroundColor: "white", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+  reviewHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#1a56db", justifyContent: "center", alignItems: "center" },
   reviewAvatarText: { color: "white", fontWeight: "700", fontSize: 14 },
   reviewName: { fontSize: 14, fontWeight: "600", color: "#111827" },
   reviewDate: { fontSize: 12, color: "#9ca3af" },
