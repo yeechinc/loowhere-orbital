@@ -33,14 +33,13 @@ export default function ProfileScreen() {
       data: { user },
     } = await supabase.auth.getUser();
     setUser(user);
-    setDisplayName(user?.user_metadata?.display_name ?? "");
+setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_name ?? "");
 
     const { count } = await supabase
       .from("reviews")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id);
     setReviewCount(count ?? 0);
-
     setLoading(false);
   }
 
@@ -72,6 +71,7 @@ export default function ProfileScreen() {
         style: "destructive",
         onPress: async () => {
           await supabase.auth.signOut();
+          setUser(null);
         },
       },
     ]);
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.username}>
-              {displayName || "LooWhere User"}
+              {displayName || user?.user_metadata?.username || "LooWhere User"}
             </Text>
             <Text style={styles.email}>{user?.email}</Text>
             <View style={styles.verifiedRow}>
