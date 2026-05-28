@@ -18,14 +18,22 @@ export default function TabLayout() {
   const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
+    // Check initial user
     async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       setLoading(false);
     }
     checkUser();
+
+    // Listen for auth changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Cleanup listener when component unmounts
+    return () => subscription.unsubscribe();
   }, []);
 
   if (loading) return null;

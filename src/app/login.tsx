@@ -1,65 +1,80 @@
-import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import AppTabs from "@/components/app-tabs";
+import { useState } from "react";
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
-} from "@react-navigation/native";
-import { useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { supabase } from "../../supabaseConfig";
-import LoginScreen from "./login";
-import RegisterScreen from "./register";
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showRegister, setShowRegister] = useState(false);
+export default function LoginScreen({ onSwitchToRegister, onSuccess }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Check initial user
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+  async function handleLogin() {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) {
+      Alert.alert("Login failed", error.message);
+    } else {
+      onSuccess();
     }
-    checkUser();
-
-    // Listen for auth changes (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Cleanup listener when component unmounts
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) return null;
-
-  if (!user && showRegister) {
-    return (
-      <RegisterScreen
-        onSwitchToLogin={() => setShowRegister(false)}
-        onSuccess={() => setUser(true)}
-      />
-    );
-  }
-
-  if (!user) {
-    return (
-      <LoginScreen
-        onSwitchToRegister={() => setShowRegister(true)}
-        onSuccess={() => setUser(true)}
-      />
-    );
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <View style={styles.container}>
+      <Image
+        source={require("../../assets/images/logo_signin.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      <Text style={styles.subtitle}>Welcome Back!{"\n"}Sign in to continue😛</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onSwitchToRegister}>
+        <Text style={styles.link}>Don't have an account? Register</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.footer}>made with 💩 by the BidetBuddies</Text>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#ffffff" },
+  logo: { width: 200, height: 200, alignSelf: "center", marginBottom: 8 },
+  subtitle: { fontSize: 14, color: "#6b7280", textAlign: "center", marginBottom: 32 },
+  input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#d1d5db", borderRadius: 12, padding: 14, fontSize: 14, marginBottom: 12 },
+  button: { backgroundColor: "#1a56db", borderRadius: 12, padding: 14, alignItems: "center", marginBottom: 16 },
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  link: { color: "#1a56db", textAlign: "center", fontSize: 13 },
+  footer: {
+    position: "absolute",
+    bottom: 40,
+    alignSelf: "center",
+    fontSize: 12,
+    color: "#9ca3af",
+    fontStyle: "italic",
+  },
+});
