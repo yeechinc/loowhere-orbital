@@ -20,6 +20,8 @@ export default function ProfileScreen() {
   const [displayName, setDisplayName] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [submitCount, setSubmitCount] = useState(0);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -32,6 +34,13 @@ export default function ProfileScreen() {
     } = await supabase.auth.getUser();
     setUser(user);
     setDisplayName(user?.user_metadata?.display_name ?? "");
+
+    const { count } = await supabase
+      .from("reviews")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setReviewCount(count ?? 0);
+
     setLoading(false);
   }
 
@@ -117,11 +126,11 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{reviewCount}</Text>
             <Text style={styles.statLabel}>Loos{"\n"}Reviewed</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{submitCount}</Text>
             <Text style={styles.statLabel}>Loos{"\n"}Submitted</Text>
           </View>
         </View>
@@ -147,7 +156,6 @@ export default function ProfileScreen() {
         onRequestClose={() => setSettingsVisible(false)}
       >
         <View style={[styles.modalContainer, { paddingTop: insets.top + 16 }]}>
-          {/* Modal Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Settings</Text>
             <TouchableOpacity onPress={() => setSettingsVisible(false)}>
@@ -155,7 +163,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Email */}
           <View style={styles.settingsSection}>
             <Text style={styles.settingsLabel}>Email</Text>
             <View style={styles.emailBox}>
@@ -163,7 +170,6 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Display Name */}
           <View style={styles.settingsSection}>
             <Text style={styles.settingsLabel}>Display Name</Text>
             <TextInput
@@ -184,7 +190,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Logout */}
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={() => {
@@ -203,7 +208,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0f4f8", paddingHorizontal: 16 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -213,7 +217,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: "800", color: "#111827" },
   settingsButton: { padding: 4 },
   settingsIcon: { fontSize: 24 },
-
   card: {
     backgroundColor: "white",
     borderRadius: 16,
@@ -241,7 +244,6 @@ const styles = StyleSheet.create({
   email: { fontSize: 13, color: "#6b7280", marginTop: 2 },
   verifiedRow: { marginTop: 6 },
   verifiedText: { fontSize: 12, color: "#1a56db", fontWeight: "600" },
-
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statCard: {
     flex: 1,
@@ -252,7 +254,6 @@ const styles = StyleSheet.create({
   },
   statNumber: { fontSize: 28, fontWeight: "800", color: "#1a56db" },
   statLabel: { fontSize: 12, color: "#6b7280", textAlign: "center", marginTop: 4 },
-
   section: {
     backgroundColor: "white",
     borderRadius: 16,
@@ -268,7 +269,6 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 32, marginBottom: 8 },
   emptyText: { fontSize: 16, color: "#6b7280", fontWeight: "600" },
   emptySubtext: { fontSize: 13, color: "#9ca3af", textAlign: "center", marginTop: 6 },
-
   modalContainer: {
     flex: 1,
     backgroundColor: "#f0f4f8",
@@ -282,7 +282,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 24, fontWeight: "800", color: "#111827" },
   modalClose: { fontSize: 18, color: "#6b7280" },
-
   settingsSection: { marginBottom: 24 },
   settingsLabel: {
     fontSize: 13,
@@ -298,7 +297,6 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   emailText: { fontSize: 15, color: "#374151" },
-
   input: {
     backgroundColor: "white",
     borderWidth: 1.5,
@@ -315,7 +313,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButtonText: { color: "white", fontWeight: "700", fontSize: 15 },
-
   logoutButton: {
     backgroundColor: "#fee2e2",
     borderRadius: 12,

@@ -33,15 +33,30 @@ export default function LoginScreen({ onSwitchToRegister, onSuccess }) {
         style={styles.logo}
         resizeMode="contain"
       />
-      <Text style={styles.subtitle}>Sign in to continue</Text>
-      <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      <Text style={styles.subtitle}>Welcome Back!{"\n"}Sign in to continue😛</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onSwitchToRegister}>
         <Text style={styles.link}>Don't have an account? Register</Text>
       </TouchableOpacity>
+
+      <Text style={styles.footer}>made with 💩 by the BidetBuddies</Text>
     </View>
   );
 }
@@ -54,4 +69,12 @@ const styles = StyleSheet.create({
   button: { backgroundColor: "#1a56db", borderRadius: 12, padding: 14, alignItems: "center", marginBottom: 16 },
   buttonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   link: { color: "#1a56db", textAlign: "center", fontSize: 13 },
+  footer: {
+    position: "absolute",
+    bottom: 40,
+    alignSelf: "center",
+    fontSize: 12,
+    color: "#9ca3af",
+    fontStyle: "italic",
+  },
 });
