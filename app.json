@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.anonymous.loowhere-orbital"
+      "bundleIdentifier": "com.anonymous.loowhere-orbital",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -40,6 +43,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9d0fc009-6b26-4d84-bc36-31944b5478c9"
+      }
     }
   }
 }
