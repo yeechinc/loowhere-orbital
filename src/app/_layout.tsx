@@ -57,9 +57,8 @@ export default function TabLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+  <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <AppTabs />
     </ThemeProvider>
-  );
+    );
 }
