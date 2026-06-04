@@ -1,5 +1,6 @@
 import HomeScreen from '@/app/index';
 import ProfileScreen from '@/app/profile';
+import AddLooScreen from '@/app/addloo';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +23,7 @@ export default function AppTabs() {
     switch (activeTab) {
       case 'map': return <HomeScreen />;
       case 'saved': return <ComingSoonScreen title="Saved" />;
-      case 'addloo': return <ComingSoonScreen title="Add Loo" />;
+      case 'addloo': return <AddLooScreen />;
       case 'games': return <ComingSoonScreen title="Games" />;
       case 'profile': return <ProfileScreen />;
       default: return <HomeScreen />;
