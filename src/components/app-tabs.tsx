@@ -1,6 +1,7 @@
 import HomeScreen from '@/app/index';
-import ProfileScreen from '@/app/profile';
 import AddLooScreen from '@/app/addloo';
+import ProfileScreen from '@/app/profile';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,43 +39,35 @@ export default function AppTabs() {
 
       <View style={[styles.tabBar, { paddingBottom: insets.bottom + 4 }]}>
 
+        {/* Map */}
+        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('map')}>
+          <Ionicons name={activeTab === 'map' ? 'map' : 'map-outline'} size={24} color={activeTab === 'map' ? '#1a56db' : '#9ca3af'} />
+          <Text style={[styles.label, activeTab === 'map' && styles.labelActive]}>Map</Text>
+        </TouchableOpacity>
+
         {/* Saved */}
         <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('saved')}>
-          <View style={[styles.iconWrap, activeTab === 'saved' && styles.iconWrapActive]}>
-            <Text style={styles.iconEmoji}>🔖</Text>
-          </View>
+          <Ionicons name={activeTab === 'saved' ? 'bookmark' : 'bookmark-outline'} size={24} color={activeTab === 'saved' ? '#1a56db' : '#9ca3af'} />
           <Text style={[styles.label, activeTab === 'saved' && styles.labelActive]}>Saved</Text>
         </TouchableOpacity>
 
-        {/* Add Loo */}
-        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('addloo')}>
-          <View style={[styles.iconWrap, activeTab === 'addloo' && styles.iconWrapActive]}>
-            <Text style={styles.iconEmoji}>➕</Text>
+        {/* Add Loo - center raised button */}
+        <TouchableOpacity style={styles.addLooTab} onPress={() => setActiveTab('addloo')}>
+          <View style={[styles.addLooButton, activeTab === 'addloo' && styles.addLooButtonActive]}>
+            <Ionicons name="add" size={28} color="white" />
           </View>
           <Text style={[styles.label, activeTab === 'addloo' && styles.labelActive]}>Add Loo</Text>
         </TouchableOpacity>
 
-        {/* Map - center raised button */}
-        <TouchableOpacity style={styles.addLooTab} onPress={() => setActiveTab('map')}>
-          <View style={[styles.addLooButton, activeTab === 'map' && styles.addLooButtonActive]}>
-            <Text style={styles.addLooIcon}>🧭</Text>
-          </View>
-          <Text style={[styles.label, activeTab === 'map' && styles.labelActive]}>Map</Text>
-        </TouchableOpacity>
-
         {/* Games */}
         <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('games')}>
-          <View style={[styles.iconWrap, activeTab === 'games' && styles.iconWrapActive]}>
-            <Text style={styles.iconEmoji}>🎮</Text>
-          </View>
+          <Ionicons name={activeTab === 'games' ? 'game-controller' : 'game-controller-outline'} size={24} color={activeTab === 'games' ? '#1a56db' : '#9ca3af'} />
           <Text style={[styles.label, activeTab === 'games' && styles.labelActive]}>Games</Text>
         </TouchableOpacity>
 
         {/* Profile */}
         <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('profile')}>
-          <View style={[styles.iconWrap, activeTab === 'profile' && styles.iconWrapActive]}>
-            <Text style={styles.iconEmoji}>👤</Text>
-          </View>
+          <Ionicons name={activeTab === 'profile' ? 'person' : 'person-outline'} size={24} color={activeTab === 'profile' ? '#1a56db' : '#9ca3af'} />
           <Text style={[styles.label, activeTab === 'profile' && styles.labelActive]}>Profile</Text>
         </TouchableOpacity>
 
@@ -102,21 +95,8 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingBottom: 4,
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrapActive: {
-    backgroundColor: '#eff6ff',
-  },
-  iconEmoji: { fontSize: 20 },
   label: { fontSize: 10, color: '#9ca3af', fontWeight: '500' },
   labelActive: { color: '#1a56db', fontWeight: '700' },
-
-  // Map center raised button
   addLooTab: {
     flex: 1,
     alignItems: 'center',
@@ -140,5 +120,4 @@ const styles = StyleSheet.create({
   addLooButtonActive: {
     backgroundColor: '#1240a8',
   },
-  addLooIcon: { fontSize: 24 },
 });

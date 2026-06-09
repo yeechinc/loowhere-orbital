@@ -1,3 +1,4 @@
+import AdminScreen from '../components/AdminScreen';
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +23,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [reviewCount, setReviewCount] = useState(0);
   const [submitCount, setSubmitCount] = useState(0);
+  const [adminVisible, setAdminVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -33,13 +35,20 @@ export default function ProfileScreen() {
       data: { user },
     } = await supabase.auth.getUser();
     setUser(user);
-setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_name ?? "");
+    setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_name ?? "");
 
     const { count } = await supabase
       .from("reviews")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id);
     setReviewCount(count ?? 0);
+
+    const { count: subCount } = await supabase
+      .from("submissions")
+      .select("*", { count: "exact", head: true })
+      .eq("submitted_by", user.id);
+    setSubmitCount(subCount ?? 0);
+
     setLoading(false);
   }
 
@@ -190,6 +199,18 @@ setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_nam
             </TouchableOpacity>
           </View>
 
+          {(user?.email === 'marcuschenyc@gmail.com' || user?.email === 'tayjyunwey@gmail.com') && (
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => {
+                setSettingsVisible(false);
+                setTimeout(() => setAdminVisible(true), 300);
+              }}
+            >
+              <Text style={styles.adminButtonText}>🔧 Admin Dashboard</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={() => {
@@ -200,6 +221,16 @@ setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_nam
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
+      </Modal>
+
+      {/* Admin Modal */}
+      <Modal
+        visible={adminVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setAdminVisible(false)}
+      >
+        <AdminScreen onClose={() => setAdminVisible(false)} />
       </Modal>
     </>
   );
@@ -313,6 +344,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButtonText: { color: "white", fontWeight: "700", fontSize: 15 },
+  adminButton: {
+    backgroundColor: "#1a56db",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  adminButtonText: { color: "white", fontWeight: "700", fontSize: 15 },
   logoutButton: {
     backgroundColor: "#fee2e2",
     borderRadius: 12,
