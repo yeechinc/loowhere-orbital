@@ -29,12 +29,12 @@ export default function AddLooScreen() {
   // Location
   const [toiletName, setToiletName] = useState('');
   const [address, setAddress] = useState('');
-  const [latitude, setLatitude] = useState(null);
-  const [longitude, setLongitude] = useState(null);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
 
   // Amenities
-  const [amenities, setAmenities] = useState({
+  const [amenities, setAmenities] = useState<Record<string, boolean>>({
     has_bidet: false,
     has_paper: false,
     handicapped_access: false,
@@ -83,6 +83,12 @@ export default function AddLooScreen() {
 
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        Alert.alert("Error", "You must be logged in to submit a toilet");
+        setSubmitting(false);
+        return;
+    }
 
     const { error } = await supabase.from('submissions').insert({
         name: toiletName.trim(),
