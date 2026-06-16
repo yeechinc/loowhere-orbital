@@ -14,7 +14,7 @@ import { supabase } from "../../supabaseConfig";
 export default function AdminScreen({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [userCount, setUserCount] = useState(0);
-  const [submissions, setSubmissions] = useState([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
     setLoading(false);
   }
 
-  async function handleApprove(submission) {
+  async function handleApprove(submission: any) {
     // Add to toilets table
     const { error } = await supabase.from("toilets").insert({
       name: submission.name,
@@ -70,7 +70,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
     fetchData();
   }
 
-  async function handleReject(submission) {
+  async function handleReject(submission: any) {
     Alert.alert("Reject", `Reject "${submission.name}"?`, [
       { text: "Cancel", style: "cancel" },
       {

@@ -222,7 +222,10 @@ export default function HomeScreen() {
       <MapView
         style={styles.map}
         ref={mapRef}
-        initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
+         zoomEnabled={true}
+         scrollEnabled={true}
+         zoomControlEnabled={true}
+         initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
       >
         {filteredToilets.map((toilet) => (
           <Marker
