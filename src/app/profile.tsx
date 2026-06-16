@@ -1,4 +1,4 @@
-import AdminScreen from '../components/AdminScreen';
+import AdminScreen from '@/components/Adminscreen';
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -34,6 +34,8 @@ export default function ProfileScreen() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user) return;
+
     setUser(user);
     setDisplayName(user?.user_metadata?.username ?? user?.user_metadata?.display_name ?? "");
 

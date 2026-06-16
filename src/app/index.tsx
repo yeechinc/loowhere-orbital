@@ -17,23 +17,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
 export default function HomeScreen() {
-  const [toilets, setToilets] = useState([]);
-  const [selectedToilet, setSelectedToilet] = useState(null);
-  const [activeFilters, setActiveFilters] = useState({
+  const [toilets, setToilets] = useState<any[]>([]);
+  const [selectedToilet, setSelectedToilet] = useState<any>(null);
+  const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
     bidet: false,
     handicap: false,
     paper: false,
   });
   const [reviewsVisible, setReviewsVisible] = useState(false);
-  const [reviews, setReviews] = useState([]);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [userRating, setUserRating] = useState(0);
   const [userComment, setUserComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [averageRating, setAverageRating] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const mapRef = useRef(null);
+  const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -67,8 +67,8 @@ export default function HomeScreen() {
     return () => clearTimeout(timeout);
   }, [searchQuery, toilets]);
 
-  async function fetchReviews(toiletName) {
-    const { data } = await supabase
+  async function fetchReviews(toiletName: string) {
+    const { data } = await supabase 
       .from("reviews")
       .select("*")
       .eq("toilet_name", toiletName)
@@ -84,7 +84,7 @@ export default function HomeScreen() {
     }
   }
 
-  function handleSelectResult(toilet) {
+  function handleSelectResult(toilet: any) {
     setSelectedToilet(toilet);
     fetchReviews(toilet.name);
     setSearchQuery("");
@@ -104,6 +104,11 @@ export default function HomeScreen() {
     }
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSubmitting(false);
+      return;
+    }
+
     const { error } = await supabase.from("reviews").insert({
       toilet_name: selectedToilet.name,
       user_id: user.id,
@@ -122,7 +127,7 @@ export default function HomeScreen() {
     }
   }
 
-  const toggleFilter = (filter) => {
+  const toggleFilter = (filter: string) => {
     setActiveFilters((prev) => ({ ...prev, [filter]: !prev[filter] }));
   };
 
@@ -133,7 +138,7 @@ export default function HomeScreen() {
     return true;
   });
 
-  const renderStars = (rating, size = 16, interactive = false) => (
+  const renderStars = (rating: number, size = 16, interactive = false) => (
     <View style={{ flexDirection: "row", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((star) => (
         <TouchableOpacity
