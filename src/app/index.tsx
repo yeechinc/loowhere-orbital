@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,7 +17,13 @@ import MapView, { Marker } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
-export default function HomeScreen() {
+export default function HomeScreen({
+  preSelectedToilet,
+  onPreSelectedConsumed,
+}: {
+  preSelectedToilet?: any;
+  onPreSelectedConsumed?: () => void;
+}) {
   const [toilets, setToilets] = useState<any[]>([]);
   const [selectedToilet, setSelectedToilet] = useState<any>(null);
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
@@ -33,6 +40,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [savedToilets, setSavedToilets] = useState<string[]>([]);
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
@@ -49,7 +57,24 @@ export default function HomeScreen() {
       if (error) console.log("Error:", error);
     }
     fetchToilets();
+    fetchSavedToilets();
   }, []);
+
+  useEffect(() => {
+    if (preSelectedToilet) {
+      setSelectedToilet(preSelectedToilet);
+      fetchReviews(preSelectedToilet.name);
+      setTimeout(() => {
+        mapRef.current?.animateToRegion({
+          latitude: preSelectedToilet.latitude,
+          longitude: preSelectedToilet.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 600);
+      }, 300);
+      onPreSelectedConsumed?.();
+    }
+  }, [preSelectedToilet]);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -67,8 +92,37 @@ export default function HomeScreen() {
     return () => clearTimeout(timeout);
   }, [searchQuery, toilets]);
 
+  async function fetchSavedToilets() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from("saved_toilets")
+      .select("toilet_name")
+      .eq("user_id", user.id);
+    if (data) setSavedToilets(data.map((s) => s.toilet_name));
+  }
+
+  async function toggleSave(toiletName: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const isSaved = savedToilets.includes(toiletName);
+    if (isSaved) {
+      await supabase
+        .from("saved_toilets")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("toilet_name", toiletName);
+      setSavedToilets((prev) => prev.filter((t) => t !== toiletName));
+    } else {
+      await supabase
+        .from("saved_toilets")
+        .insert({ user_id: user.id, toilet_name: toiletName });
+      setSavedToilets((prev) => [...prev, toiletName]);
+    }
+  }
+
   async function fetchReviews(toiletName: string) {
-    const { data } = await supabase 
+    const { data } = await supabase
       .from("reviews")
       .select("*")
       .eq("toilet_name", toiletName)
@@ -108,7 +162,6 @@ export default function HomeScreen() {
       setSubmitting(false);
       return;
     }
-
     const { error } = await supabase.from("reviews").insert({
       toilet_name: selectedToilet.name,
       user_id: user.id,
@@ -227,10 +280,10 @@ export default function HomeScreen() {
       <MapView
         style={styles.map}
         ref={mapRef}
-         zoomEnabled={true}
-         scrollEnabled={true}
-         zoomControlEnabled={true}
-         initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
+        zoomEnabled={true}
+        scrollEnabled={true}
+        zoomControlEnabled={true}
+        initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
       >
         {filteredToilets.map((toilet) => (
           <Marker
@@ -270,6 +323,16 @@ export default function HomeScreen() {
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.goButton}>
                 <Text style={styles.goButtonText}>📍 Let's Go!</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveToiletButton}
+                onPress={() => toggleSave(selectedToilet.name)}
+              >
+                <Ionicons
+                  name={savedToilets.includes(selectedToilet.name) ? 'heart' : 'heart-outline'}
+                  size={22}
+                  color={savedToilets.includes(selectedToilet.name) ? '#ef4444' : '#374151'}
+                />
               </TouchableOpacity>
               <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedToilet(null)}>
                 <Text style={styles.closeButtonText}>✕</Text>
@@ -335,7 +398,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0f4f8" },
-
   header: {
     backgroundColor: "white",
     paddingBottom: 4,
@@ -356,7 +418,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#1a56db" },
   filterIcon: { padding: 4 },
   filterIconText: { fontSize: 22 },
-
   searchWrapper: {
     backgroundColor: "white",
     paddingHorizontal: 12,
@@ -399,7 +460,6 @@ const styles = StyleSheet.create({
   dropdownArrow: { fontSize: 18, color: "#1a56db", marginLeft: 8 },
   separator: { height: 1, backgroundColor: "#f3f4f6", marginHorizontal: 16 },
   noResults: { padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 14 },
-
   filterRow: {
     flexDirection: "row",
     paddingHorizontal: 12,
@@ -419,9 +479,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "#1a56db", borderColor: "#1a56db" },
   chipText: { fontSize: 13, fontWeight: "600", color: "#374151" },
   chipTextActive: { color: "white" },
-
   map: { flex: 1 },
-
   bottomSheet: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
@@ -458,9 +516,9 @@ const styles = StyleSheet.create({
   buttonRow: { flexDirection: "row", gap: 10 },
   goButton: { flex: 1, backgroundColor: "#1a56db", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   goButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
+  saveToiletButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeButtonText: { fontSize: 18, color: "#374151" },
-
   modalContainer: { flex: 1, backgroundColor: "#f0f4f8", paddingHorizontal: 16 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111827", flex: 1 },

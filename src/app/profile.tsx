@@ -1,4 +1,4 @@
-import AdminScreen from '@/components/Adminscreen';
+import AdminScreen from '@/components/AdminScreen';
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
 export default function ProfileScreen() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");

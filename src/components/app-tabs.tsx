@@ -1,6 +1,7 @@
 import HomeScreen from '@/app/index';
-import AddLooScreen from '@/app/addloo';
 import ProfileScreen from '@/app/profile';
+import AddLooScreen from '@/app/addloo';
+import SavedScreen from '@/app/saved';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,11 +20,12 @@ function ComingSoonScreen({ title }: { title: string }) {
 export default function AppTabs() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = React.useState('map');
+  const [selectedFromSaved, setSelectedFromSaved] = React.useState<any>(null);
 
   const renderScreen = () => {
     switch (activeTab) {
-      case 'map': return <HomeScreen />;
-      case 'saved': return <ComingSoonScreen title="Saved" />;
+      case 'map': return <HomeScreen preSelectedToilet={selectedFromSaved} onPreSelectedConsumed={() => setSelectedFromSaved(null)} />;
+      case 'saved': return <SavedScreen onSelectToilet={(toilet) => { setSelectedFromSaved(toilet); setActiveTab('map'); }} />;
       case 'addloo': return <AddLooScreen />;
       case 'games': return <ComingSoonScreen title="Games" />;
       case 'profile': return <ProfileScreen />;
@@ -39,30 +41,30 @@ export default function AppTabs() {
 
       <View style={[styles.tabBar, { paddingBottom: insets.bottom + 4 }]}>
 
-        {/* Map */}
-        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('map')}>
-          <Ionicons name={activeTab === 'map' ? 'map' : 'map-outline'} size={24} color={activeTab === 'map' ? '#1a56db' : '#9ca3af'} />
-          <Text style={[styles.label, activeTab === 'map' && styles.labelActive]}>Map</Text>
-        </TouchableOpacity>
-
         {/* Saved */}
         <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('saved')}>
           <Ionicons name={activeTab === 'saved' ? 'bookmark' : 'bookmark-outline'} size={24} color={activeTab === 'saved' ? '#1a56db' : '#9ca3af'} />
           <Text style={[styles.label, activeTab === 'saved' && styles.labelActive]}>Saved</Text>
         </TouchableOpacity>
 
-        {/* Add Loo - center raised button */}
-        <TouchableOpacity style={styles.addLooTab} onPress={() => setActiveTab('addloo')}>
-          <View style={[styles.addLooButton, activeTab === 'addloo' && styles.addLooButtonActive]}>
-            <Ionicons name="add" size={28} color="white" />
-          </View>
-          <Text style={[styles.label, activeTab === 'addloo' && styles.labelActive]}>Add Loo</Text>
-        </TouchableOpacity>
-
         {/* Games */}
         <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('games')}>
           <Ionicons name={activeTab === 'games' ? 'game-controller' : 'game-controller-outline'} size={24} color={activeTab === 'games' ? '#1a56db' : '#9ca3af'} />
           <Text style={[styles.label, activeTab === 'games' && styles.labelActive]}>Games</Text>
+        </TouchableOpacity>
+
+        {/* Map - CENTER raised button */}
+        <TouchableOpacity style={styles.mapTab} onPress={() => setActiveTab('map')}>
+          <View style={[styles.mapButton, activeTab === 'map' && styles.mapButtonActive]}>
+            <Ionicons name="map" size={26} color="white" />
+          </View>
+          <Text style={[styles.label, activeTab === 'map' && styles.labelActive]}>Map</Text>
+        </TouchableOpacity>
+
+        {/* Add Loo */}
+        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('addloo')}>
+          <Ionicons name={activeTab === 'addloo' ? 'add-circle' : 'add-circle-outline'} size={24} color={activeTab === 'addloo' ? '#1a56db' : '#9ca3af'} />
+          <Text style={[styles.label, activeTab === 'addloo' && styles.labelActive]}>Add Loo</Text>
         </TouchableOpacity>
 
         {/* Profile */}
@@ -97,14 +99,16 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 10, color: '#9ca3af', fontWeight: '500' },
   labelActive: { color: '#1a56db', fontWeight: '700' },
-  addLooTab: {
+
+  // Map center raised button
+  mapTab: {
     flex: 1,
     alignItems: 'center',
     gap: 4,
     paddingBottom: 4,
     marginTop: -20,
   },
-  addLooButton: {
+  mapButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -117,7 +121,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  addLooButtonActive: {
+  mapButtonActive: {
     backgroundColor: '#1240a8',
   },
 });
