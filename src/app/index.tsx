@@ -3,11 +3,12 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
-  Modal,
   Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +28,7 @@ export default function HomeScreen({
   onPreSelectedConsumed?: () => void;
 }) {
   const [toilets, setToilets] = useState<any[]>([]);
+  const [loadingToilets, setLoadingToilets] = useState(true);
   const [selectedToilet, setSelectedToilet] = useState<any>(null);
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
     bidet: false,
@@ -45,23 +47,35 @@ export default function HomeScreen({
   const [savedToilets, setSavedToilets] = useState<string[]>([]);
   const [toiletPhotos, setToiletPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    async function checkUser() {
+    async function init() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) router.replace("/login");
-    }
-    checkUser();
+      if (!user) { router.replace("/login"); return; }
+      setCurrentUserId(user.id);
 
-    async function fetchToilets() {
       const { data, error } = await supabase.from("toilets").select("*");
-      if (data) setToilets(data);
-      if (error) console.log("Error:", error);
+      if (error) { console.log("Error:", error); setLoadingToilets(false); return; }
+
+      // Fetch all reviews to compute ratings
+      const { data: reviewsData } = await supabase.from("reviews").select("toilet_name, rating");
+
+      const toiletsWithRatings = (data ?? []).map((toilet) => {
+        const toiletReviews = (reviewsData ?? []).filter((r) => r.toilet_name === toilet.name);
+        const avg = toiletReviews.length > 0
+          ? toiletReviews.reduce((sum, r) => sum + r.rating, 0) / toiletReviews.length
+          : null;
+        return { ...toilet, avg_rating: avg, review_count: toiletReviews.length };
+      });
+
+      setToilets(toiletsWithRatings);
+      setLoadingToilets(false);
+      fetchSavedToilets();
     }
-    fetchToilets();
-    fetchSavedToilets();
+    init();
   }, []);
 
   useEffect(() => {
@@ -122,13 +136,11 @@ export default function HomeScreen({
       Alert.alert("Permission denied", "Please allow photo library access.");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.7,
     });
-
     if (result.canceled) return;
 
     setUploadingPhoto(true);
@@ -137,7 +149,6 @@ export default function HomeScreen({
 
     const uri = result.assets[0].uri;
     const fileName = `${user.id}-${Date.now()}.jpg`;
-
     const response = await fetch(uri);
     const blob = await response.blob();
 
@@ -151,10 +162,7 @@ export default function HomeScreen({
       return;
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from("toilet-photos")
-      .getPublicUrl(fileName);
-
+    const { data: { publicUrl } } = supabase.storage.from("toilet-photos").getPublicUrl(fileName);
     const { error: dbError } = await supabase.from("toilet_photos").insert({
       toilet_name: selectedToilet.name,
       photo_url: publicUrl,
@@ -162,7 +170,6 @@ export default function HomeScreen({
     });
 
     setUploadingPhoto(false);
-
     if (dbError) {
       Alert.alert("Error", dbError.message);
     } else {
@@ -176,16 +183,10 @@ export default function HomeScreen({
     if (!user) return;
     const isSaved = savedToilets.includes(toiletName);
     if (isSaved) {
-      await supabase
-        .from("saved_toilets")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("toilet_name", toiletName);
+      await supabase.from("saved_toilets").delete().eq("user_id", user.id).eq("toilet_name", toiletName);
       setSavedToilets((prev) => prev.filter((t) => t !== toiletName));
     } else {
-      await supabase
-        .from("saved_toilets")
-        .insert({ user_id: user.id, toilet_name: toiletName });
+      await supabase.from("saved_toilets").insert({ user_id: user.id, toilet_name: toiletName });
       setSavedToilets((prev) => [...prev, toiletName]);
     }
   }
@@ -222,16 +223,10 @@ export default function HomeScreen({
   }
 
   async function handleSubmitReview() {
-    if (userRating === 0) {
-      Alert.alert("Error", "Please select a star rating!");
-      return;
-    }
+    if (userRating === 0) { Alert.alert("Error", "Please select a star rating!"); return; }
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSubmitting(false);
-      return;
-    }
+    if (!user) { setSubmitting(false); return; }
     const { error } = await supabase.from("reviews").insert({
       toilet_name: selectedToilet.name,
       user_id: user.id,
@@ -250,6 +245,24 @@ export default function HomeScreen({
     }
   }
 
+  async function handleDeleteReview(reviewId: string) {
+    Alert.alert("Delete Review", "Are you sure you want to delete this review?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await supabase.from("reviews").delete().eq("id", reviewId);
+          if (error) {
+            Alert.alert("Error", error.message);
+          } else {
+            await fetchReviews(selectedToilet.name);
+          }
+        },
+      },
+    ]);
+  }
+
   const toggleFilter = (filter: string) => {
     setActiveFilters((prev) => ({ ...prev, [filter]: !prev[filter] }));
   };
@@ -264,11 +277,7 @@ export default function HomeScreen({
   const renderStars = (rating: number, size = 16, interactive = false) => (
     <View style={{ flexDirection: "row", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity
-          key={star}
-          onPress={() => interactive && setUserRating(star)}
-          disabled={!interactive}
-        >
+        <TouchableOpacity key={star} onPress={() => interactive && setUserRating(star)} disabled={!interactive}>
           <Text style={{ fontSize: size, color: star <= rating ? "#f59e0b" : "#d1d5db" }}>★</Text>
         </TouchableOpacity>
       ))}
@@ -306,7 +315,6 @@ export default function HomeScreen({
             </TouchableOpacity>
           )}
         </View>
-
         {showResults && (
           <View style={styles.dropdown}>
             {searchResults.length === 0 ? (
@@ -314,7 +322,7 @@ export default function HomeScreen({
             ) : (
               <FlatList
                 data={searchResults}
-                keyExtractor={(item) => item.id?.toString() ?? item.name}
+                keyExtractor={(item) => item.name}
                 keyboardShouldPersistTaps="handled"
                 style={{ maxHeight: 240 }}
                 renderItem={({ item }) => (
@@ -322,6 +330,12 @@ export default function HomeScreen({
                     <View style={{ flex: 1 }}>
                       <Text style={styles.dropdownName}>{item.name}</Text>
                       <Text style={styles.dropdownAddress}>{item.address}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <Text style={{ fontSize: 11, color: "#f59e0b" }}>★</Text>
+                        <Text style={{ fontSize: 11, color: "#6b7280" }}>
+                          {item.avg_rating ? `${item.avg_rating.toFixed(1)} (${item.review_count} reviews)` : "No reviews yet"}
+                        </Text>
+                      </View>
                     </View>
                     <Text style={styles.dropdownArrow}>→</Text>
                   </TouchableOpacity>
@@ -357,19 +371,23 @@ export default function HomeScreen({
       >
         {filteredToilets.map((toilet) => (
           <Marker
-            key={`${toilet.name}-${selectedToilet?.name}`}
+            key={toilet.name}
             coordinate={{ latitude: toilet.latitude, longitude: toilet.longitude }}
             pinColor={toilet.has_bidet ? "#1a56db" : "red"}
-            onPress={() => {
-              setSelectedToilet(toilet);
-              fetchReviews(toilet.name);
-              fetchToiletPhotos(toilet.name);
-            }}
+            onPress={() => { setSelectedToilet(toilet); fetchReviews(toilet.name); fetchToiletPhotos(toilet.name); }}
           />
         ))}
       </MapView>
 
-      {/* Bottom Sheet Popup */}
+      {/* Loading overlay */}
+      {loadingToilets && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#1a56db" />
+          <Text style={styles.loadingText}>Finding toilets near you...</Text>
+        </View>
+      )}
+
+      {/* Bottom Sheet */}
       {selectedToilet && (
         <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 8 }]}>
           {toiletPhotos.length > 0 ? (
@@ -385,7 +403,6 @@ export default function HomeScreen({
               </Text>
             </TouchableOpacity>
           )}
-
           <View style={styles.sheetContent}>
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{selectedToilet.name}</Text>
@@ -479,6 +496,11 @@ export default function HomeScreen({
                     </Text>
                   </View>
                   {renderStars(review.rating, 14)}
+                  {review.user_id === currentUserId && (
+                    <TouchableOpacity onPress={() => handleDeleteReview(review.id)} style={styles.deleteReviewBtn}>
+                      <Text style={styles.deleteReviewText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
               </View>
@@ -493,21 +515,7 @@ export default function HomeScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0f4f8" },
-  header: {
-    backgroundColor: "white",
-    paddingBottom: 4,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    zIndex: 10,
-    overflow: "visible",
-  },
+  header: { backgroundColor: "white", paddingBottom: 4, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, zIndex: 10, overflow: "visible" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoImage: { width: 60, height: 60, resizeMode: "contain" },
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#1a56db" },
@@ -531,6 +539,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: "600", color: "#374151" },
   chipTextActive: { color: "white" },
   map: { flex: 1 },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.85)", justifyContent: "center", alignItems: "center", gap: 12 },
+  loadingText: { fontSize: 15, color: "#6b7280", fontWeight: "600" },
   bottomSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
   photoScroll: { height: 140, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   toiletPhoto: { width: 400, height: 140, resizeMode: "cover" },
@@ -573,4 +583,6 @@ const styles = StyleSheet.create({
   reviewName: { fontSize: 14, fontWeight: "600", color: "#111827" },
   reviewDate: { fontSize: 12, color: "#9ca3af" },
   reviewComment: { fontSize: 14, color: "#374151", lineHeight: 20 },
+  deleteReviewBtn: { padding: 4 },
+  deleteReviewText: { fontSize: 16 },
 });
