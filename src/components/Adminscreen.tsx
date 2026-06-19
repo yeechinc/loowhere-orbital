@@ -23,8 +23,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
 
   async function fetchData() {
     setLoading(true);
-
-    // Get pending submissions
     const { data: subs } = await supabase
       .from("submissions")
       .select("*")
@@ -32,7 +30,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
       .order("created_at", { ascending: false });
     setSubmissions(subs ?? []);
 
-    // Get user count from reviews + submissions as proxy
     const { count } = await supabase
       .from("reviews")
       .select("user_id", { count: "exact", head: true });
@@ -55,9 +52,15 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
       verified: true,
     });
 
-    if (error) {
-      Alert.alert("Error", error.message);
-      return;
+    if (error) { Alert.alert("Error", error.message); return; }
+
+    // If submission had a photo, link it to toilet_photos
+    if (submission.photo_url) {
+      await supabase.from("toilet_photos").insert({
+        toilet_name: submission.name,
+        photo_url: submission.photo_url,
+        uploaded_by: submission.submitted_by,
+      });
     }
 
     // Update submission status
@@ -89,7 +92,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🔧 Admin Dashboard</Text>
         <TouchableOpacity onPress={onClose}>
@@ -101,8 +103,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
         <ActivityIndicator size="large" color="#1a56db" style={{ marginTop: 40 }} />
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
-
-          {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{submissions.length}</Text>
@@ -114,7 +114,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
             </View>
           </View>
 
-          {/* Pending Submissions */}
           <Text style={styles.sectionTitle}>Pending Submissions</Text>
 
           {submissions.length === 0 ? (
@@ -128,33 +127,24 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
                 <Text style={styles.subName}>{sub.name}</Text>
                 <Text style={styles.subAddress}>{sub.address}</Text>
                 <Text style={styles.subDate}>
-                  {new Date(sub.created_at).toLocaleDateString("en-SG", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {new Date(sub.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}
                 </Text>
-
-                {/* Amenities */}
+                {sub.photo_url && (
+                  <View style={styles.photoIndicator}>
+                    <Text style={styles.photoIndicatorText}>📷 Photo attached</Text>
+                  </View>
+                )}
                 <View style={styles.tagRow}>
                   {sub.has_bidet && <View style={styles.tag}><Text style={styles.tagText}>🚿 Bidet</Text></View>}
                   {sub.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
                   {sub.handicapped_access && <View style={styles.tag}><Text style={styles.tagText}>♿ Accessible</Text></View>}
                   {sub.has_shower && <View style={styles.tag}><Text style={styles.tagText}>🚿 Shower</Text></View>}
                 </View>
-
-                {/* Approve/Reject */}
                 <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={styles.approveBtn}
-                    onPress={() => handleApprove(sub)}
-                  >
+                  <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(sub)}>
                     <Text style={styles.approveBtnText}>✅ Approve</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.rejectBtn}
-                    onPress={() => handleReject(sub)}
-                  >
+                  <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(sub)}>
                     <Text style={styles.rejectBtnText}>❌ Reject</Text>
                   </TouchableOpacity>
                 </View>
@@ -171,78 +161,29 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0f4f8", paddingHorizontal: 16 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   title: { fontSize: 24, fontWeight: "800", color: "#111827" },
   closeBtn: { fontSize: 18, color: "#6b7280" },
-
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 24 },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#eff6ff",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-  },
+  statCard: { flex: 1, backgroundColor: "#eff6ff", borderRadius: 16, padding: 16, alignItems: "center" },
   statNumber: { fontSize: 32, fontWeight: "800", color: "#1a56db" },
   statLabel: { fontSize: 12, color: "#6b7280", textAlign: "center", marginTop: 4 },
-
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#111827", marginBottom: 12 },
-
-  emptyCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    gap: 8,
-  },
+  emptyCard: { backgroundColor: "white", borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
   emptyIcon: { fontSize: 32 },
   emptyText: { fontSize: 16, color: "#6b7280", fontWeight: "600" },
-
-  submissionCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-  },
+  submissionCard: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
   subName: { fontSize: 16, fontWeight: "700", color: "#111827", marginBottom: 4 },
   subAddress: { fontSize: 13, color: "#6b7280", marginBottom: 4 },
   subDate: { fontSize: 12, color: "#9ca3af", marginBottom: 10 },
-
+  photoIndicator: { backgroundColor: "#eff6ff", borderRadius: 8, padding: 8, marginBottom: 10 },
+  photoIndicatorText: { fontSize: 13, color: "#1a56db", fontWeight: "600" },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  tag: {
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
+  tag: { backgroundColor: "#eff6ff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#bfdbfe" },
   tagText: { fontSize: 12, color: "#1a56db", fontWeight: "600" },
-
   actionRow: { flexDirection: "row", gap: 10 },
-  approveBtn: {
-    flex: 1,
-    backgroundColor: "#dcfce7",
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-  },
+  approveBtn: { flex: 1, backgroundColor: "#dcfce7", borderRadius: 10, padding: 12, alignItems: "center" },
   approveBtnText: { color: "#166534", fontWeight: "700", fontSize: 14 },
-  rejectBtn: {
-    flex: 1,
-    backgroundColor: "#fee2e2",
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-  },
+  rejectBtn: { flex: 1, backgroundColor: "#fee2e2", borderRadius: 10, padding: 12, alignItems: "center" },
   rejectBtnText: { color: "#dc2626", fontWeight: "700", fontSize: 14 },
 });

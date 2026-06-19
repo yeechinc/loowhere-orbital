@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -41,6 +42,8 @@ export default function HomeScreen({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [savedToilets, setSavedToilets] = useState<string[]>([]);
+  const [toiletPhotos, setToiletPhotos] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
@@ -64,6 +67,7 @@ export default function HomeScreen({
     if (preSelectedToilet) {
       setSelectedToilet(preSelectedToilet);
       fetchReviews(preSelectedToilet.name);
+      fetchToiletPhotos(preSelectedToilet.name);
       setTimeout(() => {
         mapRef.current?.animateToRegion({
           latitude: preSelectedToilet.latitude,
@@ -100,6 +104,70 @@ export default function HomeScreen({
       .select("toilet_name")
       .eq("user_id", user.id);
     if (data) setSavedToilets(data.map((s) => s.toilet_name));
+  }
+
+  async function fetchToiletPhotos(toiletName: string) {
+    const { data } = await supabase
+      .from("toilet_photos")
+      .select("photo_url")
+      .eq("toilet_name", toiletName)
+      .order("created_at", { ascending: false });
+    if (data) setToiletPhotos(data.map((p) => p.photo_url));
+  }
+
+  async function handleAddPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission denied", "Please allow photo library access.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    setUploadingPhoto(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setUploadingPhoto(false); return; }
+
+    const uri = result.assets[0].uri;
+    const fileName = `${user.id}-${Date.now()}.jpg`;
+
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    const { error: uploadError } = await supabase.storage
+      .from("toilet-photos")
+      .upload(fileName, blob, { contentType: "image/jpeg" });
+
+    if (uploadError) {
+      Alert.alert("Upload failed", uploadError.message);
+      setUploadingPhoto(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("toilet-photos")
+      .getPublicUrl(fileName);
+
+    const { error: dbError } = await supabase.from("toilet_photos").insert({
+      toilet_name: selectedToilet.name,
+      photo_url: publicUrl,
+      uploaded_by: user.id,
+    });
+
+    setUploadingPhoto(false);
+
+    if (dbError) {
+      Alert.alert("Error", dbError.message);
+    } else {
+      await fetchToiletPhotos(selectedToilet.name);
+      Alert.alert("Thanks!", "Photo uploaded successfully!");
+    }
   }
 
   async function toggleSave(toiletName: string) {
@@ -141,6 +209,7 @@ export default function HomeScreen({
   function handleSelectResult(toilet: any) {
     setSelectedToilet(toilet);
     fetchReviews(toilet.name);
+    fetchToiletPhotos(toilet.name);
     setSearchQuery("");
     setShowResults(false);
     mapRef.current?.animateToRegion({
@@ -290,7 +359,11 @@ export default function HomeScreen({
             key={`${toilet.name}-${selectedToilet?.name}`}
             coordinate={{ latitude: toilet.latitude, longitude: toilet.longitude }}
             pinColor={toilet.has_bidet ? "#1a56db" : "red"}
-            onPress={() => { setSelectedToilet(toilet); fetchReviews(toilet.name); }}
+            onPress={() => {
+              setSelectedToilet(toilet);
+              fetchReviews(toilet.name);
+              fetchToiletPhotos(toilet.name);
+            }}
           />
         ))}
       </MapView>
@@ -298,9 +371,20 @@ export default function HomeScreen({
       {/* Bottom Sheet Popup */}
       {selectedToilet && (
         <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 8 }]}>
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.imagePlaceholderText}>📷 Picture here</Text>
-          </View>
+          {toiletPhotos.length > 0 ? (
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+              {toiletPhotos.map((url, i) => (
+                <Image key={i} source={{ uri: url }} style={styles.toiletPhoto} />
+              ))}
+            </ScrollView>
+          ) : (
+            <TouchableOpacity style={styles.imagePlaceholder} onPress={handleAddPhoto} disabled={uploadingPhoto}>
+              <Text style={styles.imagePlaceholderText}>
+                {uploadingPhoto ? "Uploading..." : "📷 Tap to add a photo"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.sheetContent}>
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{selectedToilet.name}</Text>
@@ -324,10 +408,12 @@ export default function HomeScreen({
               <TouchableOpacity style={styles.goButton}>
                 <Text style={styles.goButtonText}>📍 Let's Go!</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveToiletButton}
-                onPress={() => toggleSave(selectedToilet.name)}
-              >
+              {toiletPhotos.length > 0 && (
+                <TouchableOpacity style={styles.photoButton} onPress={handleAddPhoto} disabled={uploadingPhoto}>
+                  <Ionicons name="camera-outline" size={22} color="#374151" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.saveToiletButton} onPress={() => toggleSave(selectedToilet.name)}>
                 <Ionicons
                   name={savedToilets.includes(selectedToilet.name) ? 'heart' : 'heart-outline'}
                   size={22}
@@ -418,89 +504,28 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#1a56db" },
   filterIcon: { padding: 4 },
   filterIconText: { fontSize: 22 },
-  searchWrapper: {
-    backgroundColor: "white",
-    paddingHorizontal: 12,
-    paddingBottom: 6,
-    zIndex: 20,
-  },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
+  searchWrapper: { backgroundColor: "white", paddingHorizontal: 12, paddingBottom: 6, zIndex: 20 },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#f3f4f6", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   searchIcon: { fontSize: 15 },
   searchInput: { flex: 1, fontSize: 15, color: "#111827" },
   clearText: { fontSize: 15, color: "#9ca3af" },
-  dropdown: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    marginTop: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
-    overflow: "hidden",
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  dropdown: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#e5e7eb", marginTop: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 6, overflow: "hidden" },
+  dropdownItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 },
   dropdownName: { fontSize: 15, fontWeight: "600", color: "#111827" },
   dropdownAddress: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   dropdownArrow: { fontSize: 18, color: "#1a56db", marginLeft: 8 },
   separator: { height: 1, backgroundColor: "#f3f4f6", marginHorizontal: 16 },
   noResults: { padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 14 },
-  filterRow: {
-    flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    backgroundColor: "white",
-    zIndex: 9,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: "white",
-    borderWidth: 1.5,
-    borderColor: "#d1d5db",
-  },
+  filterRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10, gap: 8, backgroundColor: "white", zIndex: 9 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "white", borderWidth: 1.5, borderColor: "#d1d5db" },
   chipActive: { backgroundColor: "#1a56db", borderColor: "#1a56db" },
   chipText: { fontSize: 13, fontWeight: "600", color: "#374151" },
   chipTextActive: { color: "white" },
   map: { flex: 1 },
-  bottomSheet: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "60%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  imagePlaceholder: {
-    height: 140,
-    backgroundColor: "#e5e7eb",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  bottomSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
+  photoScroll: { height: 140, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  toiletPhoto: { width: 400, height: 140, resizeMode: "cover" },
+  imagePlaceholder: { height: 140, backgroundColor: "#e5e7eb", borderTopLeftRadius: 20, borderTopRightRadius: 20, justifyContent: "center", alignItems: "center" },
   imagePlaceholderText: { fontSize: 16, color: "#9ca3af" },
   sheetContent: { padding: 16 },
   sheetTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
@@ -516,6 +541,7 @@ const styles = StyleSheet.create({
   buttonRow: { flexDirection: "row", gap: 10 },
   goButton: { flex: 1, backgroundColor: "#1a56db", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   goButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
+  photoButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   saveToiletButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeButton: { width: 50, backgroundColor: "#f3f4f6", borderRadius: 12, alignItems: "center", justifyContent: "center" },
   closeButtonText: { fontSize: 18, color: "#374151" },
