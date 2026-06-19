@@ -7,6 +7,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -405,7 +406,15 @@ export default function HomeScreen({
               {selectedToilet.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
             </View>
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.goButton}>
+              <TouchableOpacity
+                style={styles.goButton}
+                onPress={() => {
+                  const { latitude, longitude, name } = selectedToilet;
+                  const url = `maps://?q=${encodeURIComponent(name)}&ll=${latitude},${longitude}`;
+                  const fallback = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+                  Linking.openURL(url).catch(() => Linking.openURL(fallback));
+                }}
+              >
                 <Text style={styles.goButtonText}>📍 Let's Go!</Text>
               </TouchableOpacity>
               {toiletPhotos.length > 0 && (
