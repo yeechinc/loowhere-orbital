@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -48,6 +49,8 @@ export default function HomeScreen({
   const [toiletPhotos, setToiletPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [promptedToilets, setPromptedToilets] = useState<string[]>([]);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
@@ -57,10 +60,15 @@ export default function HomeScreen({
       if (!user) { router.replace("/login"); return; }
       setCurrentUserId(user.id);
 
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      }
+
       const { data, error } = await supabase.from("toilets").select("*");
       if (error) { console.log("Error:", error); setLoadingToilets(false); return; }
 
-      // Fetch all reviews to compute ratings
       const { data: reviewsData } = await supabase.from("reviews").select("toilet_name, rating");
 
       const toiletsWithRatings = (data ?? []).map((toilet) => {
@@ -263,6 +271,36 @@ export default function HomeScreen({
     ]);
   }
 
+  async function handlePaperRefill(confirmed: boolean) {
+    setPromptedToilets((prev) => [...prev, selectedToilet.name]);
+    if (!confirmed) return;
+    const { error } = await supabase
+      .from("toilets")
+      .update({ has_paper: true })
+      .eq("name", selectedToilet.name);
+    if (!error) {
+      setToilets((prev) =>
+        prev.map((t) => t.name === selectedToilet.name ? { ...t, has_paper: true } : t)
+      );
+      setSelectedToilet((prev: any) => ({ ...prev, has_paper: true }));
+      Alert.alert("Thanks! 🧻", "We've updated this toilet's status. You're helping the community!");
+    }
+  }
+
+  function getMarkerColor(toilet: any) {
+    return toilet.has_paper ? "#1a56db" : "red";
+  }
+
+  function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): string {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return d < 1000 ? `${Math.round(d)}m` : `${(d / 1000).toFixed(1)}km`;
+  }
+
   const toggleFilter = (filter: string) => {
     setActiveFilters((prev) => ({ ...prev, [filter]: !prev[filter] }));
   };
@@ -283,6 +321,10 @@ export default function HomeScreen({
       ))}
     </View>
   );
+
+  const showPaperPrompt = selectedToilet &&
+    !selectedToilet.has_paper &&
+    !promptedToilets.includes(selectedToilet.name);
 
   return (
     <View style={styles.container}>
@@ -330,11 +372,18 @@ export default function HomeScreen({
                     <View style={{ flex: 1 }}>
                       <Text style={styles.dropdownName}>{item.name}</Text>
                       <Text style={styles.dropdownAddress}>{item.address}</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                        <Text style={{ fontSize: 11, color: "#f59e0b" }}>★</Text>
-                        <Text style={{ fontSize: 11, color: "#6b7280" }}>
-                          {item.avg_rating ? `${item.avg_rating.toFixed(1)} (${item.review_count} reviews)` : "No reviews yet"}
-                        </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Text style={{ fontSize: 11, color: "#f59e0b" }}>★</Text>
+                          <Text style={{ fontSize: 11, color: "#6b7280" }}>
+                            {item.avg_rating ? `${item.avg_rating.toFixed(1)} (${item.review_count} reviews)` : "No reviews yet"}
+                          </Text>
+                        </View>
+                        {userLocation && (
+                          <Text style={{ fontSize: 11, color: "#6b7280" }}>
+                            · 📍 {getDistance(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude)}
+                          </Text>
+                        )}
                       </View>
                     </View>
                     <Text style={styles.dropdownArrow}>→</Text>
@@ -367,13 +416,15 @@ export default function HomeScreen({
         zoomEnabled={true}
         scrollEnabled={true}
         zoomControlEnabled={true}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
         initialRegion={{ latitude: 1.3521, longitude: 103.8198, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
       >
         {filteredToilets.map((toilet) => (
           <Marker
-            key={toilet.name}
+            key={`${toilet.name}-${toilet.has_paper}`}
             coordinate={{ latitude: toilet.latitude, longitude: toilet.longitude }}
-            pinColor={toilet.has_bidet ? "#1a56db" : "red"}
+            pinColor={getMarkerColor(toilet)}
             onPress={() => { setSelectedToilet(toilet); fetchReviews(toilet.name); fetchToiletPhotos(toilet.name); }}
           />
         ))}
@@ -403,7 +454,22 @@ export default function HomeScreen({
               </Text>
             </TouchableOpacity>
           )}
+
           <View style={styles.sheetContent}>
+            {showPaperPrompt && (
+              <View style={styles.refillPrompt}>
+                <Text style={styles.refillText}>🧻 Has toilet paper been refilled?</Text>
+                <View style={styles.refillButtons}>
+                  <TouchableOpacity style={styles.refillYes} onPress={() => handlePaperRefill(true)}>
+                    <Text style={styles.refillYesText}>Yes!</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.refillNo} onPress={() => handlePaperRefill(false)}>
+                    <Text style={styles.refillNoText}>No</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>{selectedToilet.name}</Text>
               <View style={styles.verifiedBadge}>
@@ -421,6 +487,7 @@ export default function HomeScreen({
               {selectedToilet.has_bidet && <View style={styles.tag}><Text style={styles.tagText}>🚿 Bidet</Text></View>}
               {selectedToilet.handicapped_access && <View style={styles.tag}><Text style={styles.tagText}>♿ Accessible</Text></View>}
               {selectedToilet.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
+              {!selectedToilet.has_paper && <View style={[styles.tag, styles.tagWarning]}><Text style={styles.tagWarningText}>⚠️ No Paper</Text></View>}
             </View>
             <View style={styles.buttonRow}>
               <TouchableOpacity
@@ -541,12 +608,21 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.85)", justifyContent: "center", alignItems: "center", gap: 12 },
   loadingText: { fontSize: 15, color: "#6b7280", fontWeight: "600" },
+  userMarker: { width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(26,86,219,0.2)", justifyContent: "center", alignItems: "center" },
+  userMarkerInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#1a56db", borderWidth: 2, borderColor: "white" },
   bottomSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
   photoScroll: { height: 140, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   toiletPhoto: { width: 400, height: 140, resizeMode: "cover" },
   imagePlaceholder: { height: 140, backgroundColor: "#e5e7eb", borderTopLeftRadius: 20, borderTopRightRadius: 20, justifyContent: "center", alignItems: "center" },
   imagePlaceholderText: { fontSize: 16, color: "#9ca3af" },
   sheetContent: { padding: 16 },
+  refillPrompt: { backgroundColor: "#fff7ed", borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "#fed7aa" },
+  refillText: { fontSize: 14, fontWeight: "600", color: "#9a3412", marginBottom: 10 },
+  refillButtons: { flexDirection: "row", gap: 8 },
+  refillYes: { flex: 1, backgroundColor: "#16a34a", borderRadius: 8, padding: 10, alignItems: "center" },
+  refillYesText: { color: "white", fontWeight: "700", fontSize: 14 },
+  refillNo: { flex: 1, backgroundColor: "#f3f4f6", borderRadius: 8, padding: 10, alignItems: "center" },
+  refillNoText: { color: "#374151", fontWeight: "700", fontSize: 14 },
   sheetTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111827", flex: 1 },
   verifiedBadge: { backgroundColor: "#1a56db", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginLeft: 8 },
@@ -554,9 +630,11 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   ratingText: { fontSize: 13, color: "#1a56db", textDecorationLine: "underline", fontWeight: "600" },
   sheetAddress: { fontSize: 13, color: "#6b7280", marginBottom: 10 },
-  tagRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  tagRow: { flexDirection: "row", gap: 8, marginBottom: 14, flexWrap: "wrap" },
   tag: { backgroundColor: "#eff6ff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#bfdbfe" },
   tagText: { fontSize: 13, color: "#1a56db", fontWeight: "600" },
+  tagWarning: { backgroundColor: "#fff7ed", borderColor: "#fed7aa" },
+  tagWarningText: { fontSize: 13, color: "#9a3412", fontWeight: "600" },
   buttonRow: { flexDirection: "row", gap: 10 },
   goButton: { flex: 1, backgroundColor: "#1a56db", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   goButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
