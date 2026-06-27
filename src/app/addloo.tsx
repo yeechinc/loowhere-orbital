@@ -86,13 +86,12 @@ export default function AddLooScreen() {
   async function handleSubmit() {
     if (!toiletName.trim()) { Alert.alert('Error', 'Please enter a toilet name'); return; }
     if (!address.trim()) { Alert.alert('Error', 'Please enter an address'); return; }
-    if (!latitude || !longitude) { Alert.alert('Error', 'Please use the current location button to set coordinates'); return; }
+    if (!latitude || !longitude) { Alert.alert('Error', 'Could not determine coordinates. Please use the current location button or enter a valid address.'); return; }
 
     setSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { Alert.alert("Error", "You must be logged in to submit a toilet"); setSubmitting(false); return; }
 
-    // Upload photo first if one was selected
     let photoUrl: string | null = null;
     if (photoUri) {
       setUploadingPhoto(true);
@@ -109,7 +108,6 @@ export default function AddLooScreen() {
       setUploadingPhoto(false);
     }
 
-    // Insert submission with photo URL
     const { error } = await supabase.from('submissions').insert({
       name: toiletName.trim(),
       address: address.trim(),
@@ -178,20 +176,67 @@ export default function AddLooScreen() {
                 <Text style={styles.mascotSubtitle}>Tell us where to find it!</Text>
               </View>
             </View>
+
             <TouchableOpacity style={styles.locationButton} onPress={useCurrentLocation} disabled={locating}>
               {locating ? <ActivityIndicator color="white" /> : <Text style={styles.locationButtonText}>📍 Use My Current Location</Text>}
             </TouchableOpacity>
-            {latitude && <View style={styles.locationSet}><Text style={styles.locationSetText}>✅ Location set!</Text></View>}
+
+            {latitude && (
+              <View style={styles.locationSet}>
+                <Text style={styles.locationSetText}>✅ Location set!</Text>
+              </View>
+            )}
+
             <Text style={styles.inputLabel}>Toilet Name</Text>
-            <TextInput style={styles.input} placeholder='e.g. "ION Orchard B2 near Uniqlo"' value={toiletName} onChangeText={setToiletName} />
+            <TextInput
+              style={styles.input}
+              placeholder='e.g. "ION Orchard B2 near Uniqlo"'
+              value={toiletName}
+              onChangeText={setToiletName}
+            />
+
             <Text style={styles.inputLabel}>Address / Postal Code</Text>
-            <TextInput style={styles.input} placeholder="e.g. 2 Orchard Turn, Singapore 238801" value={address} onChangeText={setAddress} />
-            <TouchableOpacity style={styles.nextButton} onPress={() => {
-              if (!toiletName.trim() || !address.trim()) { Alert.alert('Error', 'Please fill in all fields'); return; }
-              if (!latitude) { Alert.alert('Error', 'Please use the current location button to set coordinates'); return; }
-              setStep(2);
-            }}>
-              <Text style={styles.nextButtonText}>Next →</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2 Orchard Turn, Singapore 238801"
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                setLatitude(null);
+                setLongitude(null);
+              }}
+            />
+
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={async () => {
+                if (!toiletName.trim() || !address.trim()) {
+                  Alert.alert('Error', 'Please fill in all fields');
+                  return;
+                }
+                if (!latitude) {
+                  setLocating(true);
+                  try {
+                    const geocoded = await Location.geocodeAsync(address.trim());
+                    if (geocoded.length > 0) {
+                      setLatitude(geocoded[0].latitude);
+                      setLongitude(geocoded[0].longitude);
+                      setLocating(false);
+                      setStep(2);
+                    } else {
+                      setLocating(false);
+                      Alert.alert('Error', 'Could not find this address. Try using the current location button or entering a more specific address.');
+                    }
+                  } catch {
+                    setLocating(false);
+                    Alert.alert('Error', 'Failed to find address. Please use the current location button.');
+                  }
+                  return;
+                }
+                setStep(2);
+              }}
+            >
+              {locating ? <ActivityIndicator color="white" /> : <Text style={styles.nextButtonText}>Next →</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -207,8 +252,16 @@ export default function AddLooScreen() {
             </View>
             <View style={styles.amenitiesGrid}>
               {AMENITIES.map((a) => (
-                <TouchableOpacity key={a.key} style={[styles.amenityCard, amenities[a.key] && styles.amenityCardActive]} onPress={() => setAmenities(prev => ({ ...prev, [a.key]: !prev[a.key] }))}>
-                  {amenities[a.key] && <View style={styles.amenityCheck}><Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>✓</Text></View>}
+                <TouchableOpacity
+                  key={a.key}
+                  style={[styles.amenityCard, amenities[a.key] && styles.amenityCardActive]}
+                  onPress={() => setAmenities(prev => ({ ...prev, [a.key]: !prev[a.key] }))}
+                >
+                  {amenities[a.key] && (
+                    <View style={styles.amenityCheck}>
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>✓</Text>
+                    </View>
+                  )}
                   <Text style={styles.amenityIcon}>{a.icon}</Text>
                   <Text style={[styles.amenityLabel, amenities[a.key] && styles.amenityLabelActive]}>{a.label}</Text>
                 </TouchableOpacity>

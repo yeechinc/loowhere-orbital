@@ -39,7 +39,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
   }
 
   async function handleApprove(submission: any) {
-    // Add to toilets table
     const { error } = await supabase.from("toilets").insert({
       name: submission.name,
       address: submission.address,
@@ -54,7 +53,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
 
     if (error) { Alert.alert("Error", error.message); return; }
 
-    // If submission had a photo, link it to toilet_photos
     if (submission.photo_url) {
       await supabase.from("toilet_photos").insert({
         toilet_name: submission.name,
@@ -63,14 +61,15 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
       });
     }
 
-    // Update submission status
     await supabase
       .from("submissions")
       .update({ status: "approved" })
       .eq("id", submission.id);
 
-    Alert.alert("✅ Approved!", `${submission.name} is now live on the map!`);
-    fetchData();
+    setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
+    setTimeout(() => {
+      Alert.alert("✅ Approved!", `${submission.name} is now live on the map!`);
+    }, 300);
   }
 
   async function handleReject(submission: any) {
@@ -84,7 +83,10 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
             .from("submissions")
             .update({ status: "rejected" })
             .eq("id", submission.id);
-          fetchData();
+          setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
+          setTimeout(() => {
+            Alert.alert("❌ Rejected", `"${submission.name}" has been rejected.`);
+          }, 300);
         },
       },
     ]);

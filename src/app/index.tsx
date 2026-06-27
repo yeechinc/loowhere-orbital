@@ -54,6 +54,19 @@ export default function HomeScreen({
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
 
+  async function getAddressFromCoords(latitude: number, longitude: number): Promise<string> {
+    try {
+      const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (geocode.length > 0) {
+        const g = geocode[0];
+        return [g.streetNumber, g.street, g.city, g.postalCode]
+          .filter(Boolean)
+          .join(', ');
+      }
+    } catch {}
+    return '';
+  }
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -79,7 +92,17 @@ export default function HomeScreen({
         return { ...toilet, avg_rating: avg, review_count: toiletReviews.length };
       });
 
-      setToilets(toiletsWithRatings);
+      const fixed = await Promise.all(
+        toiletsWithRatings.map(async (toilet) => {
+          if (!toilet.address || toilet.address.includes('NIL') || toilet.address.includes('null')) {
+            const addr = await getAddressFromCoords(toilet.latitude, toilet.longitude);
+            return { ...toilet, address: addr || toilet.address };
+          }
+          return toilet;
+        })
+      );
+
+      setToilets(fixed);
       setLoadingToilets(false);
       fetchSavedToilets();
     }
@@ -328,7 +351,6 @@ export default function HomeScreen({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           <Image source={require("../../assets/images/logo.png")} style={styles.logoImage} />
@@ -339,7 +361,6 @@ export default function HomeScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchWrapper}>
         <View style={styles.searchBar}>
           <Text style={styles.searchIcon}>🔍</Text>
@@ -371,7 +392,9 @@ export default function HomeScreen({
                   <TouchableOpacity style={styles.dropdownItem} onPress={() => handleSelectResult(item)}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.dropdownName}>{item.name}</Text>
-                      <Text style={styles.dropdownAddress}>{item.address}</Text>
+                      <Text style={styles.dropdownAddress}>
+                        {item.address?.replace(/NIL/g, '').replace(/\s+/g, ' ').trim() || 'No address available'}
+                      </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                           <Text style={{ fontSize: 11, color: "#f59e0b" }}>★</Text>
@@ -396,7 +419,6 @@ export default function HomeScreen({
         )}
       </View>
 
-      {/* Filter Chips */}
       <View style={styles.filterRow}>
         <TouchableOpacity style={[styles.chip, activeFilters.bidet && styles.chipActive]} onPress={() => toggleFilter("bidet")}>
           <Text style={[styles.chipText, activeFilters.bidet && styles.chipTextActive]}>🚿 Bidet</Text>
@@ -409,7 +431,6 @@ export default function HomeScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Map */}
       <MapView
         style={styles.map}
         ref={mapRef}
@@ -430,7 +451,6 @@ export default function HomeScreen({
         ))}
       </MapView>
 
-      {/* Loading overlay */}
       {loadingToilets && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#1a56db" />
@@ -438,7 +458,6 @@ export default function HomeScreen({
         </View>
       )}
 
-      {/* Bottom Sheet */}
       {selectedToilet && (
         <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 8 }]}>
           {toiletPhotos.length > 0 ? (
@@ -521,7 +540,6 @@ export default function HomeScreen({
         </View>
       )}
 
-      {/* Reviews Modal */}
       <Modal visible={reviewsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setReviewsVisible(false)}>
         <View style={[styles.modalContainer, { paddingTop: insets.top + 16 }]}>
           <View style={styles.modalHeader}>
@@ -608,8 +626,6 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.85)", justifyContent: "center", alignItems: "center", gap: 12 },
   loadingText: { fontSize: 15, color: "#6b7280", fontWeight: "600" },
-  userMarker: { width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(26,86,219,0.2)", justifyContent: "center", alignItems: "center" },
-  userMarkerInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#1a56db", borderWidth: 2, borderColor: "white" },
   bottomSheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 10 },
   photoScroll: { height: 140, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   toiletPhoto: { width: 400, height: 140, resizeMode: "cover" },
