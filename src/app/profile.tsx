@@ -50,7 +50,6 @@ export default function ProfileScreen() {
       .eq("submitted_by", user.id);
     setSubmitCount(subCount ?? 0);
 
-    // Fetch recent reviews for activity feed
     const { data: reviews } = await supabase
       .from("reviews")
       .select("*")
