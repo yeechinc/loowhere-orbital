@@ -13,16 +13,19 @@ import { supabase } from "../../supabaseConfig";
 export default function RegisterScreen({ onSwitchToLogin, onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
+    if (!username.trim()) {
+      Alert.alert("Registration failed", "Please enter a username.");
+      return;
+    }
     setLoading(true);
-    const randomNum = Math.floor(Math.random() * 9000) + 1000;
-    const displayName = `LooSeeker${randomNum}`;
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName } },
+      options: { data: { username: username.trim(), display_name: username.trim() } },
     });
     setLoading(false);
     if (error) {
@@ -42,8 +45,28 @@ export default function RegisterScreen({ onSwitchToLogin, onSuccess }) {
         resizeMode="contain"
       />
       <Text style={styles.subtitle}>Create an account</Text>
-      <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
       <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? "Registering..." : "Register"}</Text>
       </TouchableOpacity>
