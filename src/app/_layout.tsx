@@ -13,12 +13,11 @@ import RegisterScreen from "./register";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
-    // Check initial user
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -26,13 +25,11 @@ export default function TabLayout() {
     }
     checkUser();
 
-    // Listen for auth changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Cleanup listener when component unmounts
     return () => subscription.unsubscribe();
   }, []);
 
@@ -46,7 +43,6 @@ export default function TabLayout() {
       />
     );
   }
-
   if (!user) {
     return (
       <LoginScreen
