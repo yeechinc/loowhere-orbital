@@ -356,9 +356,6 @@ export default function HomeScreen({
           <Image source={require("../../assets/images/logo.png")} style={styles.logoImage} />
           <Text style={styles.headerTitle}>LooWhere?</Text>
         </View>
-        <TouchableOpacity style={styles.filterIcon}>
-          <Text style={styles.filterIconText}>⚙️</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.searchWrapper}>
