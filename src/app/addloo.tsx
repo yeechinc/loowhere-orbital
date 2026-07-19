@@ -22,6 +22,19 @@ const AMENITIES = [
   { key: 'has_shower', label: 'Shower', icon: '🚿' },
 ];
 
+async function awardPoints(userId: string, points: number) {
+  const { data: existing } = await supabase
+    .from('user_points')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (existing) {
+    await supabase.from('user_points').update({ points: existing.points + points, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  } else {
+    await supabase.from('user_points').insert({ user_id: userId, points });
+  }
+}
+
 export default function AddLooScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
@@ -93,6 +106,7 @@ export default function AddLooScreen() {
     if (!user) { Alert.alert("Error", "You must be logged in to submit a toilet"); setSubmitting(false); return; }
 
     let photoUrl: string | null = null;
+    let photoUploaded = false;
     if (photoUri) {
       setUploadingPhoto(true);
       const fileName = `${user.id}-${Date.now()}.jpg`;
@@ -104,6 +118,7 @@ export default function AddLooScreen() {
       if (!uploadError) {
         const { data: { publicUrl } } = supabase.storage.from('toilet-photos').getPublicUrl(fileName);
         photoUrl = publicUrl;
+        photoUploaded = true;
       }
       setUploadingPhoto(false);
     }
@@ -126,7 +141,11 @@ export default function AddLooScreen() {
 
     if (error) { Alert.alert('Error', error.message); return; }
 
-    Alert.alert('🚽 Loo Added!', 'Thanks for contributing to LooWhere! Your submission will be reviewed.', [
+    let pointsEarned = 10;
+    if (photoUploaded) pointsEarned += 5;
+    await awardPoints(user.id, pointsEarned);
+
+    Alert.alert('🚽 Loo Added!', `Thanks for contributing! You earned ${pointsEarned} points. Your submission will be reviewed.`, [
       { text: 'OK', onPress: () => {
         setStep(0);
         setToiletName('');
@@ -176,44 +195,23 @@ export default function AddLooScreen() {
                 <Text style={styles.mascotSubtitle}>Tell us where to find it!</Text>
               </View>
             </View>
-
             <TouchableOpacity style={styles.locationButton} onPress={useCurrentLocation} disabled={locating}>
               {locating ? <ActivityIndicator color="white" /> : <Text style={styles.locationButtonText}>📍 Use My Current Location</Text>}
             </TouchableOpacity>
-
-            {latitude && (
-              <View style={styles.locationSet}>
-                <Text style={styles.locationSetText}>✅ Location set!</Text>
-              </View>
-            )}
-
+            {latitude && <View style={styles.locationSet}><Text style={styles.locationSetText}>✅ Location set!</Text></View>}
             <Text style={styles.inputLabel}>Toilet Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder='e.g. "ION Orchard B2 near Uniqlo"'
-              value={toiletName}
-              onChangeText={setToiletName}
-            />
-
+            <TextInput style={styles.input} placeholder='e.g. "ION Orchard B2 near Uniqlo"' value={toiletName} onChangeText={setToiletName} />
             <Text style={styles.inputLabel}>Address / Postal Code</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. 2 Orchard Turn, Singapore 238801"
               value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                setLatitude(null);
-                setLongitude(null);
-              }}
+              onChangeText={(text) => { setAddress(text); setLatitude(null); setLongitude(null); }}
             />
-
             <TouchableOpacity
               style={styles.nextButton}
               onPress={async () => {
-                if (!toiletName.trim() || !address.trim()) {
-                  Alert.alert('Error', 'Please fill in all fields');
-                  return;
-                }
+                if (!toiletName.trim() || !address.trim()) { Alert.alert('Error', 'Please fill in all fields'); return; }
                 if (!latitude) {
                   setLocating(true);
                   try {
@@ -257,11 +255,7 @@ export default function AddLooScreen() {
                   style={[styles.amenityCard, amenities[a.key] && styles.amenityCardActive]}
                   onPress={() => setAmenities(prev => ({ ...prev, [a.key]: !prev[a.key] }))}
                 >
-                  {amenities[a.key] && (
-                    <View style={styles.amenityCheck}>
-                      <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>✓</Text>
-                    </View>
-                  )}
+                  {amenities[a.key] && <View style={styles.amenityCheck}><Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>✓</Text></View>}
                   <Text style={styles.amenityIcon}>{a.icon}</Text>
                   <Text style={[styles.amenityLabel, amenities[a.key] && styles.amenityLabelActive]}>{a.label}</Text>
                 </TouchableOpacity>
@@ -279,7 +273,7 @@ export default function AddLooScreen() {
               <Text style={styles.mascotEmoji}>🚽</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.mascotTitle}>One last thing!</Text>
-                <Text style={styles.mascotSubtitle}>Got a photo? (Optional)</Text>
+                <Text style={styles.mascotSubtitle}>Got a photo? (Optional, +5 pts)</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.photoPlaceholder} onPress={handlePickPhoto}>
@@ -299,7 +293,7 @@ export default function AddLooScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting || uploadingPhoto}>
-              <Text style={styles.submitButtonText}>{submitting || uploadingPhoto ? 'Submitting...' : '🚽 Submit Loo!'}</Text>
+              <Text style={styles.submitButtonText}>{submitting || uploadingPhoto ? 'Submitting...' : '🚽 Submit Loo! (+10 pts)'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.skipButton} onPress={handleSubmit} disabled={submitting}>
               <Text style={styles.skipButtonText}>Skip and submit without photo</Text>

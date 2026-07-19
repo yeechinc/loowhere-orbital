@@ -14,6 +14,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
+function getRankTitle(points: number): string {
+  if (points >= 200) return '👑 Loo Royalty';
+  if (points >= 101) return '🏆 Loo Legend';
+  if (points >= 51) return '⭐ Loo Ranger';
+  if (points >= 21) return '🔍 Loo Scout';
+  return '🚽 Loo Newbie';
+}
+
 export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +33,7 @@ export default function ProfileScreen() {
   const [submitCount, setSubmitCount] = useState(0);
   const [recentReviews, setRecentReviews] = useState<any[]>([]);
   const [adminVisible, setAdminVisible] = useState(false);
+  const [totalPoints, setTotalPoints] = useState(0);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -57,6 +66,13 @@ export default function ProfileScreen() {
       .order("created_at", { ascending: false })
       .limit(5);
     setRecentReviews(reviews ?? []);
+
+    const { data: pointsData } = await supabase
+      .from("user_points")
+      .select("points")
+      .eq("user_id", user.id)
+      .single();
+    setTotalPoints(pointsData?.points ?? 0);
 
     setLoading(false);
   }
@@ -98,7 +114,6 @@ export default function ProfileScreen() {
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 32 }}>
-        {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Profile</Text>
           <TouchableOpacity style={styles.settingsButton} onPress={() => { setNewDisplayName(displayName); setSettingsVisible(true); }}>
@@ -106,7 +121,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* User Card */}
         <View style={styles.card}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>{(displayName || user?.email)?.[0].toUpperCase() ?? "?"}</Text>
@@ -120,7 +134,18 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Stats */}
+        <View style={styles.pointsCard}>
+          <View style={styles.pointsLeft}>
+            <Text style={styles.pointsNumber}>{totalPoints}</Text>
+            <Text style={styles.pointsLabel}>Total Points</Text>
+          </View>
+          <View style={styles.pointsDivider} />
+          <View style={styles.pointsRight}>
+            <Text style={styles.rankTitle}>{getRankTitle(totalPoints)}</Text>
+            <Text style={styles.rankLabel}>Current Rank</Text>
+          </View>
+        </View>
+
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{reviewCount}</Text>
@@ -132,7 +157,16 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Recent Activity */}
+        <View style={styles.pointsBreakdown}>
+          <Text style={styles.sectionTitle}>How to earn points</Text>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>🚽</Text><Text style={styles.breakdownText}>Submit a new toilet</Text><Text style={styles.breakdownPts}>+10 pts</Text></View>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>✅</Text><Text style={styles.breakdownText}>Submission approved</Text><Text style={styles.breakdownPts}>+15 pts</Text></View>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>📷</Text><Text style={styles.breakdownText}>Upload a photo</Text><Text style={styles.breakdownPts}>+5 pts</Text></View>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>⭐</Text><Text style={styles.breakdownText}>Leave a review</Text><Text style={styles.breakdownPts}>+3 pts</Text></View>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>🧻</Text><Text style={styles.breakdownText}>Confirm paper refill</Text><Text style={styles.breakdownPts}>+2 pts</Text></View>
+          <View style={styles.breakdownRow}><Text style={styles.breakdownEmoji}>🎮</Text><Text style={styles.breakdownText}>Play Flush Frenzy</Text><Text style={styles.breakdownPts}>+1 pt/10 flushes</Text></View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           {recentReviews.length === 0 ? (
@@ -158,7 +192,6 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Settings Modal */}
       <Modal visible={settingsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSettingsVisible(false)}>
         <View style={[styles.modalContainer, { paddingTop: insets.top + 16 }]}>
           <View style={styles.modalHeader}>
@@ -195,7 +228,6 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Admin Modal */}
       <Modal visible={adminVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAdminVisible(false)}>
         <AdminScreen onClose={() => setAdminVisible(false)} />
       </Modal>
@@ -218,12 +250,25 @@ const styles = StyleSheet.create({
   email: { fontSize: 13, color: "#6b7280", marginTop: 2 },
   verifiedRow: { marginTop: 6 },
   verifiedText: { fontSize: 12, color: "#1a56db", fontWeight: "600" },
+  pointsCard: { backgroundColor: "#1a56db", borderRadius: 16, padding: 20, flexDirection: "row", alignItems: "center", marginBottom: 16, shadowColor: "#1a56db", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  pointsLeft: { flex: 1, alignItems: "center" },
+  pointsNumber: { fontSize: 36, fontWeight: "800", color: "white" },
+  pointsLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  pointsDivider: { width: 1, height: 50, backgroundColor: "rgba(255,255,255,0.3)", marginHorizontal: 16 },
+  pointsRight: { flex: 1, alignItems: "center" },
+  rankTitle: { fontSize: 16, fontWeight: "800", color: "white", textAlign: "center" },
+  rankLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: "#eff6ff", borderRadius: 16, padding: 16, alignItems: "center" },
   statNumber: { fontSize: 28, fontWeight: "800", color: "#1a56db" },
   statLabel: { fontSize: 12, color: "#6b7280", textAlign: "center", marginTop: 4 },
-  section: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
+  pointsBreakdown: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#111827", marginBottom: 12 },
+  breakdownRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
+  breakdownEmoji: { fontSize: 18, marginRight: 10, width: 28 },
+  breakdownText: { flex: 1, fontSize: 14, color: "#374151" },
+  breakdownPts: { fontSize: 13, color: "#1a56db", fontWeight: "700" },
+  section: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
   emptyActivity: { alignItems: "center", paddingVertical: 24 },
   emptyIcon: { fontSize: 32, marginBottom: 8 },
   emptyText: { fontSize: 16, color: "#6b7280", fontWeight: "600" },

@@ -21,6 +21,19 @@ import MapView, { Marker } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
+async function awardPoints(userId: string, points: number) {
+  const { data: existing } = await supabase
+    .from('user_points')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (existing) {
+    await supabase.from('user_points').update({ points: existing.points + points, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  } else {
+    await supabase.from('user_points').insert({ user_id: userId, points });
+  }
+}
+
 export default function HomeScreen({
   preSelectedToilet,
   onPreSelectedConsumed,
@@ -202,8 +215,9 @@ export default function HomeScreen({
     if (dbError) {
       Alert.alert("Error", dbError.message);
     } else {
+      await awardPoints(user.id, 5);
       await fetchToiletPhotos(selectedToilet.name);
-      Alert.alert("Thanks!", "Photo uploaded successfully!");
+      Alert.alert("Thanks! +5pts", "Photo uploaded successfully!");
     }
   }
 
@@ -267,10 +281,11 @@ export default function HomeScreen({
     if (error) {
       Alert.alert("Error", error.message);
     } else {
+      await awardPoints(user.id, 3);
       setUserRating(0);
       setUserComment("");
       await fetchReviews(selectedToilet.name);
-      Alert.alert("Thanks!", "Your review has been submitted!");
+      Alert.alert("Thanks! +3pts", "Your review has been submitted!");
     }
   }
 
@@ -300,11 +315,13 @@ export default function HomeScreen({
       .update({ has_paper: true })
       .eq("name", selectedToilet.name);
     if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await awardPoints(user.id, 2);
       setToilets((prev) =>
         prev.map((t) => t.name === selectedToilet.name ? { ...t, has_paper: true } : t)
       );
       setSelectedToilet((prev: any) => ({ ...prev, has_paper: true }));
-      Alert.alert("Thanks! 🧻", "We've updated this toilet's status. You're helping the community!");
+      Alert.alert("Thanks! 🧻 +2pts", "We've updated this toilet's status. You're helping the community!");
     }
   }
 
@@ -576,7 +593,7 @@ export default function HomeScreen({
                 numberOfLines={3}
               />
               <TouchableOpacity style={styles.submitButton} onPress={handleSubmitReview} disabled={submitting}>
-                <Text style={styles.submitButtonText}>{submitting ? "Submitting..." : "Submit Review"}</Text>
+                <Text style={styles.submitButtonText}>{submitting ? "Submitting..." : "Submit Review (+3 pts)"}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.divider} />

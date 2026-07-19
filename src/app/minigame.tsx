@@ -27,6 +27,19 @@ interface LeaderboardEntry {
   score: number;
 }
 
+async function awardPoints(userId: string, points: number) {
+  const { data: existing } = await supabase
+    .from('user_points')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (existing) {
+    await supabase.from('user_points').update({ points: existing.points + points, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  } else {
+    await supabase.from('user_points').insert({ user_id: userId, points });
+  }
+}
+
 export default function GameScreen() {
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
   const [score, setScore] = useState(0);
@@ -36,6 +49,7 @@ export default function GameScreen() {
   const [items, setItems] = useState<FallingItem[]>([]);
   const [leaderboardVisible, setLeaderboardVisible] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [pointsEarned, setPointsEarned] = useState(0);
   const intervalRef = useRef<any>(null);
   const pooSpawnRef = useRef<any>(null);
   const itemIdRef = useRef(0);
@@ -55,6 +69,7 @@ export default function GameScreen() {
     if (gameState === 'ended') {
       saveHighScore(score);
       submitScoreToLeaderboard(score);
+      handleAwardGamePoints(score);
     }
   }, [gameState]);
 
@@ -80,6 +95,17 @@ export default function GameScreen() {
     }
   }
 
+  async function handleAwardGamePoints(newScore: number) {
+    if (newScore === 0) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const pts = Math.floor(newScore / 10);
+    if (pts > 0) {
+      await awardPoints(user.id, pts);
+      setPointsEarned(pts);
+    }
+  }
+
   async function submitScoreToLeaderboard(newScore: number) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -96,10 +122,7 @@ export default function GameScreen() {
 
     if (existing) {
       if (newScore > existing.score) {
-        await supabase
-          .from('game_scores')
-          .update({ score: newScore })
-          .eq('id', existing.id);
+        await supabase.from('game_scores').update({ score: newScore }).eq('id', existing.id);
       }
     } else {
       await supabase.from('game_scores').insert({
@@ -179,6 +202,7 @@ export default function GameScreen() {
     setScore(0);
     setTimeLeft(20);
     setItems([]);
+    setPointsEarned(0);
     itemIdRef.current = 0;
     animationsRef.current = {};
     gameStateRef.current = 'playing';
@@ -242,7 +266,7 @@ export default function GameScreen() {
       {gameState === 'idle' && (
         <View style={styles.centerContent}>
           <Text style={styles.idleEmoji}>🚽</Text>
-          <Text style={styles.idleHint}>Tap 🚽 to score{'\n'}Avoid 💩 or it's game over!</Text>
+          <Text style={styles.idleHint}>Tap 🚽 to score{'\n'}Avoid 💩 or it's game over!{'\n'}Every 10 flushes = 1 pt 🎯</Text>
           <TouchableOpacity style={styles.startButton} onPress={handleStart}>
             <Text style={styles.startButtonText}>Start Flushing!</Text>
           </TouchableOpacity>
@@ -276,6 +300,9 @@ export default function GameScreen() {
             {endReason === 'poo' ? 'Awww mannn you just got pooed!!!' : "Time's up!"}
           </Text>
           <Text style={styles.endScore}>You flushed {score} times!</Text>
+          {pointsEarned > 0 && (
+            <Text style={styles.pointsEarned}>+{pointsEarned} pts earned! 🎯</Text>
+          )}
           {score >= highScore && score > 0 && (
             <Text style={styles.newHighScore}>🏆 New High Score!</Text>
           )}
@@ -347,6 +374,7 @@ const styles = StyleSheet.create({
   endEmoji: { fontSize: 80 },
   endTitle: { fontSize: 24, fontWeight: '800', color: '#111827', textAlign: 'center' },
   endScore: { fontSize: 18, color: '#6b7280', fontWeight: '600' },
+  pointsEarned: { fontSize: 18, color: '#1a56db', fontWeight: '800' },
   newHighScore: { fontSize: 18, color: '#f59e0b', fontWeight: '800' },
   modalContainer: { flex: 1, backgroundColor: '#f0f4f8', paddingHorizontal: 16 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
