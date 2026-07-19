@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../supabaseConfig';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,6 +22,11 @@ interface FallingItem {
   anim: Animated.Value;
 }
 
+interface LeaderboardEntry {
+  display_name: string;
+  score: number;
+}
+
 export default function GameScreen() {
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'ended'>('idle');
   const [score, setScore] = useState(0);
@@ -26,6 +34,8 @@ export default function GameScreen() {
   const [timeLeft, setTimeLeft] = useState(20);
   const [endReason, setEndReason] = useState<'time' | 'poo'>('time');
   const [items, setItems] = useState<FallingItem[]>([]);
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const intervalRef = useRef<any>(null);
   const pooSpawnRef = useRef<any>(null);
   const itemIdRef = useRef(0);
@@ -44,6 +54,7 @@ export default function GameScreen() {
   useEffect(() => {
     if (gameState === 'ended') {
       saveHighScore(score);
+      submitScoreToLeaderboard(score);
     }
   }, [gameState]);
 
@@ -67,6 +78,48 @@ export default function GameScreen() {
       await AsyncStorage.setItem('flushFrenzyHighScore', newScore.toString());
       setHighScore(newScore);
     }
+  }
+
+  async function submitScoreToLeaderboard(newScore: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const today = new Date().toDateString();
+    const displayName = user.user_metadata?.display_name ?? user.user_metadata?.username ?? 'Anonymous';
+
+    const { data: existing } = await supabase
+      .from('game_scores')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single();
+
+    if (existing) {
+      if (newScore > existing.score) {
+        await supabase
+          .from('game_scores')
+          .update({ score: newScore })
+          .eq('id', existing.id);
+      }
+    } else {
+      await supabase.from('game_scores').insert({
+        user_id: user.id,
+        display_name: displayName,
+        score: newScore,
+        date: today,
+      });
+    }
+  }
+
+  async function fetchLeaderboard() {
+    const today = new Date().toDateString();
+    const { data } = await supabase
+      .from('game_scores')
+      .select('display_name, score')
+      .eq('date', today)
+      .order('score', { ascending: false })
+      .limit(10);
+    if (data) setLeaderboard(data);
   }
 
   function spawnItem(isPoo: boolean) {
@@ -160,7 +213,15 @@ export default function GameScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      <Text style={styles.title}>🚽 Flush Frenzy</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>🚽 Flush Frenzy</Text>
+        <TouchableOpacity
+          style={styles.leaderboardBtn}
+          onPress={() => { fetchLeaderboard(); setLeaderboardVisible(true); }}
+        >
+          <Text style={styles.leaderboardBtnText}>🏆</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.subtitle}>Tap toilets, avoid the poo!</Text>
 
       <View style={styles.statsRow}>
@@ -223,13 +284,52 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <Modal
+        visible={leaderboardVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setLeaderboardVisible(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top + 16 }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>🏆 Today's Leaderboard</Text>
+            <TouchableOpacity onPress={() => setLeaderboardVisible(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.modalSubtitle}>Resets daily at midnight</Text>
+          <ScrollView>
+            {leaderboard.length === 0 ? (
+              <View style={styles.emptyLeaderboard}>
+                <Text style={styles.emptyIcon}>🚽</Text>
+                <Text style={styles.emptyText}>No scores yet today!</Text>
+                <Text style={styles.emptySubtext}>Be the first to play!</Text>
+              </View>
+            ) : (
+              leaderboard.map((entry, index) => (
+                <View key={index} style={styles.leaderboardRow}>
+                  <Text style={styles.rank}>
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                  </Text>
+                  <Text style={styles.playerName}>{entry.display_name}</Text>
+                  <Text style={styles.playerScore}>{entry.score} flushes</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#e0f2fe', paddingHorizontal: 16 },
-  title: { fontSize: 28, fontWeight: '800', color: '#111827', textAlign: 'center', marginBottom: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  title: { fontSize: 28, fontWeight: '800', color: '#111827' },
+  leaderboardBtn: { backgroundColor: 'white', borderRadius: 12, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4 },
+  leaderboardBtnText: { fontSize: 24 },
   subtitle: { fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 16 },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   statCard: { flex: 1, backgroundColor: 'white', borderRadius: 16, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
@@ -248,4 +348,17 @@ const styles = StyleSheet.create({
   endTitle: { fontSize: 24, fontWeight: '800', color: '#111827', textAlign: 'center' },
   endScore: { fontSize: 18, color: '#6b7280', fontWeight: '600' },
   newHighScore: { fontSize: 18, color: '#f59e0b', fontWeight: '800' },
+  modalContainer: { flex: 1, backgroundColor: '#f0f4f8', paddingHorizontal: 16 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#111827' },
+  modalClose: { fontSize: 18, color: '#6b7280' },
+  modalSubtitle: { fontSize: 13, color: '#9ca3af', marginBottom: 20 },
+  emptyLeaderboard: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyIcon: { fontSize: 40 },
+  emptyText: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  emptySubtext: { fontSize: 13, color: '#9ca3af' },
+  leaderboardRow: { backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+  rank: { fontSize: 20, marginRight: 12, width: 36 },
+  playerName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111827' },
+  playerScore: { fontSize: 14, color: '#1a56db', fontWeight: '700' },
 });
