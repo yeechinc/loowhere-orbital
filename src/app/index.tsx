@@ -59,9 +59,7 @@ export default function HomeScreen({
       const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (geocode.length > 0) {
         const g = geocode[0];
-        return [g.streetNumber, g.street, g.city, g.postalCode]
-          .filter(Boolean)
-          .join(', ');
+        return [g.streetNumber, g.street, g.city, g.postalCode].filter(Boolean).join(', ');
       }
     } catch {}
     return '';
@@ -311,6 +309,7 @@ export default function HomeScreen({
   }
 
   function getMarkerColor(toilet: any) {
+    if (activeFilters.bidet) return "#1a56db";
     return toilet.has_paper ? "#1a56db" : "red";
   }
 
@@ -322,6 +321,20 @@ export default function HomeScreen({
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
     const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return d < 1000 ? `${Math.round(d)}m` : `${(d / 1000).toFixed(1)}km`;
+  }
+
+  function getCleanlinessEmoji(rating: number, reviewCount: number): string {
+    if (reviewCount === 0) return '😐';
+    if (rating >= 4) return '😊';
+    if (rating >= 2.5) return '😐';
+    return '😢';
+  }
+
+  function getCleanlinessLabel(rating: number, reviewCount: number): string {
+    if (reviewCount === 0) return 'Unrated';
+    if (rating >= 4) return 'Clean';
+    if (rating >= 2.5) return 'Okay';
+    return 'Dirty';
   }
 
   const toggleFilter = (filter: string) => {
@@ -504,6 +517,11 @@ export default function HomeScreen({
               {selectedToilet.handicapped_access && <View style={styles.tag}><Text style={styles.tagText}>♿ Accessible</Text></View>}
               {selectedToilet.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
               {!selectedToilet.has_paper && <View style={[styles.tag, styles.tagWarning]}><Text style={styles.tagWarningText}>⚠️ No Paper</Text></View>}
+              <View style={styles.tag}>
+                <Text style={styles.tagText}>
+                  {getCleanlinessEmoji(averageRating, reviews.length)} {getCleanlinessLabel(averageRating, reviews.length)}
+                </Text>
+              </View>
             </View>
             <View style={styles.buttonRow}>
               <TouchableOpacity
