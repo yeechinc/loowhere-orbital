@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import GamesScreen from '@/app/games';
+
 
 export default function AppTabs() {
   const insets = useSafeAreaInsets();
@@ -19,7 +19,7 @@ export default function AppTabs() {
       case 'map': return <HomeScreen preSelectedToilet={selectedFromSaved} onPreSelectedConsumed={() => setSelectedFromSaved(null)} />;
       case 'saved': return <SavedScreen onSelectToilet={(toilet) => { setSelectedFromSaved(toilet); setActiveTab('map'); }} />;
       case 'addloo': return <AddLooScreen />;
-      case 'games': return <GamesScreen />;
+      case 'games': return <GameScreen />;
       case 'profile': return <ProfileScreen />;
       default: return <HomeScreen />;
     }
