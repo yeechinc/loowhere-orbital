@@ -11,30 +11,33 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
+async function awardPoints(userId: string, points: number) {
+  const { data: existing } = await supabase
+    .from('user_points')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (existing) {
+    await supabase.from('user_points').update({ points: existing.points + points, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  } else {
+    await supabase.from('user_points').insert({ user_id: userId, points });
+  }
+}
+
 export default function AdminScreen({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [userCount, setUserCount] = useState(0);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   async function fetchData() {
     setLoading(true);
-    const { data: subs } = await supabase
-      .from("submissions")
-      .select("*")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    const { data: subs } = await supabase.from("submissions").select("*").eq("status", "pending").order("created_at", { ascending: false });
     setSubmissions(subs ?? []);
-
-    const { count } = await supabase
-      .from("reviews")
-      .select("user_id", { count: "exact", head: true });
+    const { count } = await supabase.from("reviews").select("user_id", { count: "exact", head: true });
     setUserCount(count ?? 0);
-
     setLoading(false);
   }
 
@@ -61,10 +64,8 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
       });
     }
 
-    await supabase
-      .from("submissions")
-      .update({ status: "approved" })
-      .eq("id", submission.id);
+    await supabase.from("submissions").update({ status: "approved" }).eq("id", submission.id);
+    await awardPoints(submission.submitted_by, 15);
 
     setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
     setTimeout(() => {
@@ -79,14 +80,9 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
         text: "Reject",
         style: "destructive",
         onPress: async () => {
-          await supabase
-            .from("submissions")
-            .update({ status: "rejected" })
-            .eq("id", submission.id);
+          await supabase.from("submissions").update({ status: "rejected" }).eq("id", submission.id);
           setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
-          setTimeout(() => {
-            Alert.alert("❌ Rejected", `"${submission.name}" has been rejected.`);
-          }, 300);
+          setTimeout(() => { Alert.alert("❌ Rejected", `"${submission.name}" has been rejected.`); }, 300);
         },
       },
     ]);
@@ -96,9 +92,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.header}>
         <Text style={styles.title}>🔧 Admin Dashboard</Text>
-        <TouchableOpacity onPress={onClose}>
-          <Text style={styles.closeBtn}>✕</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
       </View>
 
       {loading ? (
@@ -128,14 +122,8 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
               <View key={sub.id} style={styles.submissionCard}>
                 <Text style={styles.subName}>{sub.name}</Text>
                 <Text style={styles.subAddress}>{sub.address}</Text>
-                <Text style={styles.subDate}>
-                  {new Date(sub.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}
-                </Text>
-                {sub.photo_url && (
-                  <View style={styles.photoIndicator}>
-                    <Text style={styles.photoIndicatorText}>📷 Photo attached</Text>
-                  </View>
-                )}
+                <Text style={styles.subDate}>{new Date(sub.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}</Text>
+                {sub.photo_url && <View style={styles.photoIndicator}><Text style={styles.photoIndicatorText}>📷 Photo attached</Text></View>}
                 <View style={styles.tagRow}>
                   {sub.has_bidet && <View style={styles.tag}><Text style={styles.tagText}>🚿 Bidet</Text></View>}
                   {sub.has_paper && <View style={styles.tag}><Text style={styles.tagText}>🧻 Paper</Text></View>}
@@ -153,7 +141,6 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
               </View>
             ))
           )}
-
           <View style={{ height: 32 }} />
         </ScrollView>
       )}
