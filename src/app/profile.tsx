@@ -216,7 +216,8 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {(user?.email === 'marcuschenyc@gmail.com' || user?.email === 'tayjyunwey@gmail.com') && (
+//emails of admin moderators
+          {(user?.email === 'marcuschenyc@gmail.com' || user?.email === 'tayjyunwey@gmail.com' || user?.email === 'e1385486@u.nus.edu') && (
             <TouchableOpacity style={styles.adminButton} onPress={() => { setSettingsVisible(false); setTimeout(() => setAdminVisible(true), 300); }}>
               <Text style={styles.adminButtonText}>🔧 Admin Dashboard</Text>
             </TouchableOpacity>
