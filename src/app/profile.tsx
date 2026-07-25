@@ -15,11 +15,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
 function getRankTitle(points: number): string {
-  if (points >= 200) return '👑 Loo Royalty';
+  if (points >= 200) return '👑 Loo King';
   if (points >= 101) return '🏆 Loo Legend';
-  if (points >= 51) return '⭐ Loo Ranger';
-  if (points >= 21) return '🔍 Loo Scout';
-  return '🚽 Loo Newbie';
+  if (points >= 51) return '⭐ Loo Master';
+  if (points >= 21) return '🔍 Loo Amateur';
+  return '🚽 Loo Seeker';
 }
 
 export default function ProfileScreen() {
