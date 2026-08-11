@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { supabase } from "../../supabaseConfig";
 
-export default function RegisterScreen({ onSwitchToLogin, onSuccess }) {
+export default function RegisterScreen({ onSwitchToLogin, onSuccess }: { onSwitchToLogin: () => void, onSuccess: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
