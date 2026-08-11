@@ -42,6 +42,19 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
   }
 
   async function handleApprove(submission: any) {
+    const { data: existing } = await supabase
+      .from("toilets")
+      .select("name")
+      .eq("name", submission.name)
+      .single();
+
+    if (existing) {
+      Alert.alert("Already exists", "This toilet is already on the map. Marking as approved.");
+      await supabase.from("submissions").update({ status: "approved" }).eq("id", submission.id);
+      setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
+      return;
+    }
+
     const { error } = await supabase.from("toilets").insert({
       name: submission.name,
       address: submission.address,
