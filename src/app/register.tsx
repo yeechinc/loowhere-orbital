@@ -16,11 +16,14 @@ export default function RegisterScreen({ onSwitchToLogin, onSuccess }) {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // validates the username, then creates a new Supabase auth account with it stored as user metadata
   async function handleRegister() {
+    // username is required since it's not part of Supabase's default auth fields
     if (!username.trim()) {
       Alert.alert("Registration failed", "Please enter a username.");
       return;
     }
+    // store the username as both 'username' and 'display_name' for use across the app
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,

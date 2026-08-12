@@ -69,6 +69,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
 
     if (error) { Alert.alert("Error", error.message); return; }
 
+    // link the submitted photo to the newly created toilet
     if (submission.photo_url) {
       await supabase.from("toilet_photos").insert({
         toilet_name: submission.name,
@@ -78,6 +79,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
     }
 
     await supabase.from("submissions").update({ status: "approved" }).eq("id", submission.id);
+    // reward the user for a successful contribution after submitting toilet
     await awardPoints(submission.submitted_by, 15);
 
     setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
@@ -87,6 +89,7 @@ export default function AdminScreen({ onClose }: { onClose: () => void }) {
   }
 
   async function handleReject(submission: any) {
+    // confirm rejection before removing the submission
     Alert.alert("Reject", `Reject "${submission.name}"?`, [
       { text: "Cancel", style: "cancel" },
       {

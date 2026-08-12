@@ -19,6 +19,7 @@ export default function SavedScreen({ onSelectToilet }: { onSelectToilet: (toile
     fetchSaved();
   }, []);
 
+  // loads the user's saved toilet names, then fetches full toilet details for each
   async function fetchSaved() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -30,6 +31,7 @@ export default function SavedScreen({ onSelectToilet }: { onSelectToilet: (toile
       .order("created_at", { ascending: false });
 
     if (data) {
+      // saved_toilets only stores names, so cross-reference against the toilets table for full details
       const names = data.map((s) => s.toilet_name);
       const { data: toilets } = await supabase
         .from("toilets")
@@ -40,6 +42,7 @@ export default function SavedScreen({ onSelectToilet }: { onSelectToilet: (toile
     setLoading(false);
   }
 
+  // removes a toilet from the user's saved list
   async function handleUnsave(toiletName: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;

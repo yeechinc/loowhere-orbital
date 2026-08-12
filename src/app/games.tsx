@@ -34,6 +34,7 @@ export default function GamesScreen() {
     setCurrentUser(user);
   }
 
+  // gets the top 10 high scores to display on the leaderboard
   async function fetchLeaderboard() {
     const { data } = await supabase
       .from("leaderboard")
@@ -43,6 +44,7 @@ export default function GamesScreen() {
     if (data) setLeaderboard(data);
   }
 
+  // saves the player's score if it beats their previous high score, or creates a new entry
   async function saveScore(finalScore: number) {
     if (!currentUser) return;
     const displayName = currentUser.user_metadata?.display_name ?? "LooSeeker";
@@ -54,6 +56,7 @@ export default function GamesScreen() {
       .single();
 
     if (existing) {
+      // only overwrite if this run beat their previous best
       if (finalScore > existing.high_score) {
         await supabase
           .from("leaderboard")
@@ -70,12 +73,14 @@ export default function GamesScreen() {
     fetchLeaderboard();
   }
 
+  // resets score/timer and kicks off a 10-second countdown
   function startGame() {
     setScore(0);
     setTimeLeft(10);
     setGameState("playing");
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
+        // countdown hit zero, so end the game
         if (prev <= 1) {
           clearInterval(timerRef.current);
           setGameState("ended");
@@ -86,6 +91,7 @@ export default function GamesScreen() {
     }, 1000);
   }
 
+  // registers a tap during gameplay and plays a animation
   function handleFlush() {
     if (gameState !== "playing") return;
     setScore((prev) => {
@@ -99,12 +105,14 @@ export default function GamesScreen() {
     ]).start();
   }
 
+  // whenever the game ends, posts final score to the leaderboard
   useEffect(() => {
     if (gameState === "ended") {
       saveScore(score);
     }
   }, [gameState]);
 
+  // maps a score to a fun rank title and color
   const getRank = (score: number) => {
     if (score >= 50) return { label: "🏆 Flush Master", color: "#f59e0b" };
     if (score >= 35) return { label: "💪 Power Flusher", color: "#3b82f6" };

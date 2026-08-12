@@ -22,6 +22,7 @@ const AMENITIES = [
   { key: 'has_shower', label: 'Shower', icon: '🚿' },
 ];
 
+// Awards points to a user, creating points record if it doesn't exist
 async function awardPoints(userId: string, points: number) {
   const { data: existing } = await supabase
     .from('user_points')
@@ -56,6 +57,7 @@ export default function AddLooScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // Grabs the user's GPS coordinates and reverse-geocodes them into a readable address
   async function useCurrentLocation() {
     setLocating(true);
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -80,6 +82,7 @@ export default function AddLooScreen() {
     Alert.alert('Location found!', 'Your current location has been set.');
   }
 
+  // Opens the device photo library so the user can attach a photo of the toilet
   async function handlePickPhoto() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -97,6 +100,7 @@ export default function AddLooScreen() {
   }
 
   async function handleSubmit() {
+    // make sure required fields are filled before submitting
     if (!toiletName.trim()) { Alert.alert('Error', 'Please enter a toilet name'); return; }
     if (!address.trim()) { Alert.alert('Error', 'Please enter an address'); return; }
     if (!latitude || !longitude) { Alert.alert('Error', 'Could not determine coordinates. Please use the current location button or enter a valid address.'); return; }
@@ -123,6 +127,7 @@ export default function AddLooScreen() {
       setUploadingPhoto(false);
     }
 
+    // create a pending submission for admin review
     const { error } = await supabase.from('submissions').insert({
       name: toiletName.trim(),
       address: address.trim(),
@@ -141,6 +146,7 @@ export default function AddLooScreen() {
 
     if (error) { Alert.alert('Error', error.message); return; }
 
+    // base points for submitting, bonus for including a photo
     let pointsEarned = 10;
     if (photoUploaded) pointsEarned += 5;
     await awardPoints(user.id, pointsEarned);

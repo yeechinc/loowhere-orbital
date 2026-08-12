@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabaseConfig";
 
+// converts a points total into a rank title shown on the profile
 function getRankTitle(points: number): string {
   if (points >= 200) return '👑 Loo King';
   if (points >= 101) return '🏆 Loo Legend';
@@ -40,6 +41,7 @@ export default function ProfileScreen() {
     fetchUser();
   }, []);
 
+  // loads the current user's profile info, stats, and recent reviews from Supabase
   async function fetchUser() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -67,6 +69,7 @@ export default function ProfileScreen() {
       .limit(5);
     setRecentReviews(reviews ?? []);
 
+    // fetch the user's accumulated points for the rank status
     const { data: pointsData } = await supabase
       .from("user_points")
       .select("points")
@@ -77,6 +80,7 @@ export default function ProfileScreen() {
     setLoading(false);
   }
 
+  // updates the display name in Supabase auth metadata and refreshes local state
   async function handleSaveDisplayName() {
     if (!newDisplayName.trim()) { Alert.alert("Error", "Display name cannot be empty"); return; }
     setSaving(true);
@@ -92,6 +96,7 @@ export default function ProfileScreen() {
     }
   }
 
+  // confirms with the user before signing out and returning to login page
   async function handleLogout() {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -99,6 +104,7 @@ export default function ProfileScreen() {
     ]);
   }
 
+  // renders a 5-star rating row, filling stars up to the given rating
   const renderStars = (rating: number) => (
     <View style={{ flexDirection: "row", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((star) => (

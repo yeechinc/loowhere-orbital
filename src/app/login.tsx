@@ -15,6 +15,7 @@ export default function LoginScreen({ onSwitchToRegister, onSuccess }: { onSwitc
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // signs the user in with Supabase auth
   async function handleLogin() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -22,6 +23,7 @@ export default function LoginScreen({ onSwitchToRegister, onSuccess }: { onSwitc
     if (error) {
       Alert.alert("Login failed", error.message);
     } else {
+      // credentials were valid, give control back to the parent
       onSuccess();
     }
   }
